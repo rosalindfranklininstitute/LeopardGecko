@@ -103,35 +103,6 @@ class PredictedData:
 
         return result.cpu().detach().numpy()[0][0]
 
-    @staticmethod
-    def AvgPool3DPytorch(data3d_np , kwidth=8 , stride0=1):
-        '''
-        Applies Pytorch AvgPool3D on the numpy data object data3d_np with the width and stride parameters given
-        Automatically uses GPU if available.
-        This function will not check if the data is too large. Use this with caution
-        It is recommended that data3d_np has a maximum of 512x512x512 size, to keep GPU usage acceptably low
-        The function returns the average-pooled data as a numpy 3D array objects
-        '''
-        #Generic. It will use the GPU if available
-        
-        #Avoid using this function
-        if torch.cuda.is_available():
-                dev="cuda:0"
-        else:
-                dev="cpu"
-        device = torch.device(dev)
-        
-        #convert to torch objects, and to gpu using cuda()
-        data3d_torch = torch.unsqueeze( torch.unsqueeze( torch.from_numpy(data3d_np),0),0 ).to(device)
-        
-        #setup torch calculation
-        torchc3d = torch.nn.AvgPool3d(kwidth, stride0)
-        
-        #Run the calculation
-        result = torchc3d(data3d_torch)
-        
-        return result.cpu().detach().numpy()[0][0]
-
 # def ConsistencyWeightData_AutoMaxMin(largedata_da):
 #     #print("Determining vmax and vmin")
 #     #Created weighted data, weighting it with a square function
@@ -143,73 +114,105 @@ class PredictedData:
 #     #print ("data_da_weighted.shape = ", data_da_weighted.shape)
 #     return data_da_weighted
 
-    @staticmethod
-    def Get3DAvgPoolOfChunkWithCornerAt( data_da_weighted, iz,iy,ix , w_avg , k_width, s_stride ):
-        '''
-        Static method
-        Averages the 3D data_da_weighted (dask array), from corner (iz, iy, ix)
-        and with windows of w_avg in all directions.
-        So, it does AvgPool3D at region [ iz : iz+w_avg , iy : iy+w_avg , iy : iy+w_avg ]
-        and with a kernel size of k_width x k_width x k_width , and stride (jump) of s_stride.
-        If the desired window exceeds the limits of the data_da_weighted , it will adjust the index limits in order to fit
-        Because it may change the index limits, the actual limits are also returned.
-        datavol_avg
-        '''
-
-        #Check all is ok
-        assert ( iz >=0 and iy>=0 and ix>=0 ) , "Error, indexes cannot be < 0 ."
-        
-        assert ( iz < data_da_weighted.shape[0] and
-                iy < data_da_weighted.shape[1] and
-                ix < data_da_weighted.shape[2]) , "Error, invalid indexes."
-        
-        #Adjust limits
-        iz_da_min = iz
-        iz_da_max = iz_da_min + w_avg
-        if iz_da_max > data_da_weighted.shape[0] :
-            iz_da_max = data_da_weighted.shape[0]
-            iz_da_min = iz_da_max- w_avg
-        
-        iy_da_min = iy
-        iy_da_max = iy_da_min + w_avg
-        if iy_da_max > data_da_weighted.shape[1] :
-            iy_da_max = data_da_weighted.shape[1]
-            iy_da_min = iy_da_max- w_avg
-        
-        ix_da_min = ix
-        ix_da_max = ix_da_min + w_avg
-        if ix_da_max > data_da_weighted.shape[2] :
-            ix_da_max = data_da_weighted.shape[2]
-            ix_da_min = ix_da_max- w_avg
-        
-        logging.info( "iz_da_min=", iz_da_min,", iz_da_max=", iz_da_max,
-            ", iy_da_min=", iy_da_min,", iy_da_max=", iy_da_max,
-            ", ix_da_min=", ix_da_min,", ix_da_max=", ix_da_max
-            )
-        
-        #Get volume and convert to numpy array
-        datavol_da = data_da_weighted [ iz_da_min:iz_da_max , iy_da_min:iy_da_max , ix_da_min:ix_da_max ]
-
-        #print("datavol_da.shape = ", datavol_da.shape)
-        #convert to numpy
-        datavol_np = datavol_da.compute()
-        #print("datavol_np.shape = ", datavol_np.shape)
-
-        #Calculate here the AvgPooling (big calculation)
-        datavol_avg = AvgPool3DPytorchGPU(datavol_np , k_width , s_stride )
-
-        logging.info("AvgPool3D calculation complete")
-        #logging.info("datavol_avg.shape = ",datavol_avg.shape)
-        
-        torch.cuda.empty_cache()
-        
-        return datavol_avg, (iz_da_min , iz_da_max , iy_da_min , iy_da_max , ix_da_min , ix_da_max)
 
     def AvgPool3D_LargeData(self, w_avg = 512, k_width=256 , s_stride=8 , do_weighting = True):
         #This function will do the avarage pooling in 3D using PyTorch AvgPool3D
         #It splits data into chunks automatically
         #and then combines the data automaticaly
         #It returns a ScoreData object
+        #@staticmethod
+
+        def AvgPool3DPytorch(data3d_np , kwidth=8 , stride0=1):
+            '''
+            Applies Pytorch AvgPool3D on the numpy data object data3d_np with the width and stride parameters given
+            Automatically uses GPU if available.
+            This function will not check if the data is too large. Use this with caution
+            It is recommended that data3d_np has a maximum of 512x512x512 size, to keep GPU usage acceptably low
+            The function returns the average-pooled data as a numpy 3D array objects
+            '''
+            #Generic. It will use the GPU if available
+
+            if torch.cuda.is_available():
+                    dev="cuda:0"
+            else:
+                    dev="cpu"
+            device = torch.device(dev)
+            
+            #convert to torch objects, and to gpu using cuda()
+            data3d_torch = torch.unsqueeze( torch.unsqueeze( torch.from_numpy(data3d_np),0),0 ).to(device)
+            
+            #setup torch calculation
+            torchc3d = torch.nn.AvgPool3d(kwidth, stride0)
+            
+            #Run the calculation
+            result = torchc3d(data3d_torch)
+            
+            return result.cpu().detach().numpy()[0][0]
+
+        #@staticmethod
+        def Get3DAvgPoolOfChunkWithCornerAt( data_da_weighted, iz,iy,ix , w_avg , k_width, s_stride ):
+            '''
+            Static method
+            Averages the 3D data_da_weighted (dask array), from corner (iz, iy, ix)
+            and with windows of w_avg in all directions.
+            So, it does AvgPool3D at region [ iz : iz+w_avg , iy : iy+w_avg , iy : iy+w_avg ]
+            and with a kernel size of k_width x k_width x k_width , and stride (jump) of s_stride.
+            If the desired window exceeds the limits of the data_da_weighted , it will adjust the index limits in order to fit
+            Because it may change the index limits, the actual limits are also returned.
+            datavol_avg
+            '''
+
+            #Check all is ok
+            assert ( iz >=0 and iy>=0 and ix>=0 ) , "Error, indexes cannot be < 0 ."
+            
+            assert ( iz < data_da_weighted.shape[0] and
+                    iy < data_da_weighted.shape[1] and
+                    ix < data_da_weighted.shape[2]) , "Error, invalid indexes."
+            
+            #Adjust limits
+            iz_da_min = iz
+            iz_da_max = iz_da_min + w_avg
+            if iz_da_max > data_da_weighted.shape[0] :
+                iz_da_max = data_da_weighted.shape[0]
+                iz_da_min = iz_da_max- w_avg
+            
+            iy_da_min = iy
+            iy_da_max = iy_da_min + w_avg
+            if iy_da_max > data_da_weighted.shape[1] :
+                iy_da_max = data_da_weighted.shape[1]
+                iy_da_min = iy_da_max- w_avg
+            
+            ix_da_min = ix
+            ix_da_max = ix_da_min + w_avg
+            if ix_da_max > data_da_weighted.shape[2] :
+                ix_da_max = data_da_weighted.shape[2]
+                ix_da_min = ix_da_max- w_avg
+            
+            logging.info( "iz_da_min=", iz_da_min,", iz_da_max=", iz_da_max,
+                ", iy_da_min=", iy_da_min,", iy_da_max=", iy_da_max,
+                ", ix_da_min=", ix_da_min,", ix_da_max=", ix_da_max
+                )
+            
+            #Get volume and convert to numpy array
+            datavol_da = data_da_weighted [ iz_da_min:iz_da_max , iy_da_min:iy_da_max , ix_da_min:ix_da_max ]
+
+            #print("datavol_da.shape = ", datavol_da.shape)
+            #convert to numpy
+            datavol_np = datavol_da.compute()
+            #print("datavol_np.shape = ", datavol_np.shape)
+
+            #Calculate here the AvgPooling (big calculation)
+            #datavol_avg = AvgPool3DPytorchGPU(datavol_np , k_width , s_stride )
+            datavol_avg = AvgPool3DPytorch(datavol_np , k_width , s_stride )
+
+            logging.info("AvgPool3D calculation complete")
+            #logging.info("datavol_avg.shape = ",datavol_avg.shape)
+            
+            torch.cuda.empty_cache()
+            
+            return datavol_avg, (iz_da_min , iz_da_max , iy_da_min , iy_da_max , ix_da_min , ix_da_max)
+
+
 
         res=None
 
@@ -218,7 +221,7 @@ class PredictedData:
         if (do_weighting):
             setWeightedData('MaxMinSquare')
         
-        data_da_weighted = self.data_da_weighted
+        data_da_weighted = self.weightedData_da
 
         if data_da_weighted is not None :
             result_avg_of_vols = np.zeros( ( int( (data_da_weighted.shape[0]-k_width)/s_stride )+1 , 
@@ -361,7 +364,7 @@ class ScoreData:
 
         return newscoredata
 
-    def saveToFile(filename):
+    def saveToFile(self, filename):
         with h5py.File(filename ,'w') as f:
             f['/data']= self.data3d
             f['/Z']= self.zVolCentres
