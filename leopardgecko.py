@@ -451,12 +451,12 @@ class ScoreData:
         hx.append ( popt[1] - popt[2]*2.35482 /2 ) # FHWM = 2.35482*stdev, At FWHM going up
         hx.append ( popt[1] ) #Commonest consistency
 
-        def getClosestlVoxelFromListOfIndices(listindices_c, Zc,Yc,Xc):
+        def getClosestlVoxelFromListOfIndices(listindicesandscores, Zc,Yc,Xc):
             #From the list of voxel indices, get the closest voxel to point (Xc, Yc, Zc)
             #Also returns the distance and its score
 
-            listindices = listindices_c[0]
-            listcscores = listindices_c[1]
+            listindices = listindicesandscores[0]
+            listcscores = listindicesandscores[1]
             
             #First element sets the return result (default)
             if len(listindices) >0:
@@ -554,3 +554,73 @@ class ScoreData:
 
         return pointsOfInterest
 
+    def SelectRegionsOfInterest_V1(self , showPlot=True , printReport = True, k_width=256 ):
+        if self.histogram is None:
+            _a, _b = self.getHistogram()
+        
+        hist_vmax = np.amax(self.histogram)
+        hist_x_vmax = self.histogram_bins [ np.where(self.histogram == hist_vmax)[0] ]
+        
+        hist_xmin = self.data3d_vmin
+        hist_xmax = self.data3d_vmax
+
+        #Choose regions based in the histogram shape
+        #Approximate peak with gaussian
+        def fgaussian(x, amplitude, mean, stddev):
+            return amplitude * np.exp( -0.5 * ((x - mean) / stddev)**2 )
+
+        aguess= np.max(self.histogram)
+        mguess = hist_x_vmax[0]
+        popt, pcov = optimize.curve_fit(fgaussian, self.histogram_bins , self.histogram, [aguess, mguess, 1.0])
+
+        print("Gaussian fit to peak, parameters amplitude={} , mean={} ,stdev={}".format(popt[0],popt[1],popt[2]))
+
+        hx = []
+
+        hx.append ( (hist_xmax - hist_xmin)/4 + hist_xmin )
+        hx.append ( (hist_xmax + hist_xmin)/2.0 )
+        hx.append ( popt[1] - 3* popt[2] )  #At mean - 3*stdev (3 sigma) #MB
+        hx.append ( popt[1] - (3* popt[2] +popt[2]*2.35482 /2)/2 ) #Olly
+        hx.append ( popt[1] - popt[2]*2.35482 /2 ) # FHWM = 2.35482*stdev, At FWHM going up #Neville
+        hx.append ( popt[1] - popt[2]*2.35482 /4 ) # MD
+        hx.append ( popt[1] ) #Commonest consistency
+
+        def getClosestlVoxelFromListOfIndices(listindicesandscores, Zc,Yc,Xc):
+            #From the list of voxel indices, get the closest voxel to point (Xc, Yc, Zc)
+            #Also returns the distance and its score
+
+            listindices = listindicesandscores[0]
+            listcscores = listindicesandscores[1]
+            
+            #First element sets the return result (default)
+            if len(listindices) >0:
+                voxelresult = listindices[0]
+                voxelresult_dist = (voxelresult[0]-Zc)**2 + (voxelresult[1]-Yc)**2 + (voxelresult[2] - Xc)**2
+                voxel_cscore = listcscores[0]
+                
+                if len(listindices)>1:
+                    for j0 in range(1, len(listindices)):
+                        i0 =  listindices[j0]
+                        #print( "i0= " , i0)
+                        thisdist = math.sqrt( (i0[0]-Zc)**2 + (i0[1]-Yc)**2 + (i0[2] - Xc)**2 )
+                        if thisdist<voxelresult_dist:
+                            voxelresult = i0
+                            voxelresult_dist = thisdist
+                            voxel_cscore = listcscores[j0]
+                
+                #print ("Closest voxel is ", voxelresult , " with distance ", voxelresult_dist)
+                return voxelresult, voxelresult_dist, voxel_cscore
+        
+        Zcenter = int( (np.amax( self.zVolCentres ) - np.amin( self.zVolCentres )) /2 )
+        Ycenter = int( (np.amax( self.yVolCentres ) - np.amin( self.yVolCentres )) /2 )
+        Xcenter = int( (np.amax( self.xVolCentres ) - np.amin( self.xVolCentres )) /2 )
+
+        pointsOfInterest=[]
+
+        for hx0 in hx:
+            pointsOfInterest.append( \
+                getClosestlVoxelFromListOfIndices ( \
+                self.GetIndicesFromOrigDataWithScoreNear( hx0, popt[2] / 4 ), \
+                Zcenter , Ycenter, Xcenter) )
+
+        return pointsOfInterest
