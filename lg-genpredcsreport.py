@@ -1,0 +1,95 @@
+#Script to generate pdf report of prediction data consistency
+
+#Accepts command line arguments
+#Generates a configuration file that will be used by jupyter notebook
+# that will generate the report.
+#In combination with jupyter nbconvert a pdf file will be generated
+#and renamed to an appropriate filename
+
+import argparse
+import yaml
+import os
+import sys
+
+parser = argparse.ArgumentParser()
+
+#Positional arguments
+parser.add_argument("datafilename", help="Input data filename, combined result from prediction. File must be in hdf5 format.")
+
+#optional arguments
+parser.add_argument("--out", help="Output filename (default:, datafilename.pdf)")
+
+#average pooling arguments
+parser.add_argument("--avgpwidth", type=int, default=512, \
+    help="Chunk width (in index units) for the average pooling of consistency score calculation" )
+
+parser.add_argument("--avgpkwidth" , type=int, default=256, \
+    help="Kernel width (in index units) for the average pooling of consistency score calculation" )
+
+parser.add_argument("--avgpstride" , type=int, default=128, \
+    help="Stride (jumps in index units) for the average pooling of consistency score calculation" )
+
+#Note that action='store_true' will default to False if not specified
+parser.add_argument("--avgpforcerecalc" , action='store_true' ,\
+    help="If calculated average pooled data already exists it will skip calculation of the average pool data unless this flag is set to true." )
+
+parser.add_argument("--csweightingmethod" , default="MaxMinSquare" , \
+    help="Sets the weigthing method used to calculate the consistency score from the data. Default: MaxMinSquare. Other options: TODO" )
+
+parser.add_argument("--csvolscalculatefile", \
+    help='''Filename containing user defined volumes (index units) where additional reporting of the
+        consistency score is desired.
+        The file must be in text format with values separated by commas
+        and volumes sparated by newlines.
+        Values should be written in order zmin, zmax, ymin, ymax, xmin, xmax
+        ''')
+
+parser.add_argument("--csroimethod", default="v1" , \
+    help="Regions of interest reporting settings by version. Default: v1. Other options:TODO")
+
+
+#Process arguments
+
+args = parser.parse_args()
+
+#check datafilename exists
+if not os.path.exists(args.datafilename) :
+    print("File could not be found. Exiting.")
+    sys.exit()
+
+outputfile=args.out
+if outputfile is None:
+    pathhead, pathtail = os.path.split(args.datafilename)
+    pathname , ext = os.path.splitext(pathtail)
+    outputfile = pathname + ".pdf"
+
+print ( "Report will be saved in file {}".format(outputfile) )
+
+#Create the configuration file
+#Saves a dictionary object containing all the settings
+
+configuration =  {"datafilename" : args.datafilename , \
+    "output file" : outputfile , \
+    "avgpwidth" : args.avgpwidth ,\
+    "avgpkwidth" : args.avgpkwidth , \
+    "avgpstride" : args.avgpstride , \
+    "avgpforcerecalc" : args.avgpforcerecalc, \
+    "csweightingmethod" : args.csweightingmethod, \
+    "csvolscalculatefile" : args.csvolscalculatefile , \
+    "csroimethod" : args.csroimethod \
+}
+
+# print( yaml.dump (configuration) )
+
+with open('lg-genpredcsreport.yaml', 'w') as f:
+    data = yaml.dump(configuration, f)
+
+
+#Run jupyter nbconvert on lg-genpredcsreport.ipynb
+command_string = "jupyter nbconvert --no-input --execute --to pdf lg-genpredcsreport.ipynb"
+os.system ( command_string )
+
+#When completed, rename the file to output filename
+command_rename = "mv lg-genpredcsreport.pdf " + outputfile
+os.system ( command_rename )
+print("Just as leopard geckos really like doing, the report {} was created.".format(outputfile) )
