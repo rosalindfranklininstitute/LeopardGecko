@@ -47,6 +47,14 @@ parser.add_argument("--csvolscalculatefile", \
 parser.add_argument("--csroimethod", default="v1" , \
     help="Regions of interest reporting settings by version. Default: v1. Other options:TODO")
 
+parser.add_argument("--configonly", action='store_true' , \
+    help="Specify whether only config file is desired, hence not running the notebook and not producing th pdf file")
+
+parser.add_argument("--dataoutfolder", \
+    help="Define here where output intermediate files should be saved")
+
+parser.add_argument("--dosdccalculation", \
+    help="Do Sorensen-Dice coefficient calculation using filename given as the labels (in binary format)")
 
 #Process arguments
 
@@ -69,27 +77,40 @@ print ( "Report will be saved in file {}".format(outputfile) )
 #Saves a dictionary object containing all the settings
 
 configuration =  {"datafilename" : args.datafilename , \
-    "output file" : outputfile , \
+    "outputfilepdf" : outputfile , \
     "avgpwidth" : args.avgpwidth ,\
     "avgpkwidth" : args.avgpkwidth , \
     "avgpstride" : args.avgpstride , \
     "avgpforcerecalc" : args.avgpforcerecalc, \
     "csweightingmethod" : args.csweightingmethod, \
     "csvolscalculatefile" : args.csvolscalculatefile , \
-    "csroimethod" : args.csroimethod \
+    "csroimethod" : args.csroimethod ,
+    "dataoutfolder" : args.dataoutfolder, \
+    "dosdccalculation": args.dosdccalculation \
 }
 
 # print( yaml.dump (configuration) )
 
-with open('lg-genpredcsreport.yaml', 'w') as f:
+#we are going to use the jupyter notebook and the configuration file in
+#the same folder as this python code
+thisfolder = os.path.dirname(__file__)
+configfile = os.path.dirname(__file__) + "/lg-genpredcsreport.yaml"
+notebookfile = os.path.dirname(__file__)+ "/lg-genpredcsreport.ipynb"
+
+#Create shared config file only
+with open(configfile, 'w') as f:
     data = yaml.dump(configuration, f)
+print("Config file saved : {} ".format(configfile) )
 
+if not args.configonly:
+    #Run jupyter nbconvert on lg-genpredcsreport.ipynb
+    command_string = "jupyter nbconvert --no-input --execute --to pdf " + notebookfile
+    os.system ( command_string )
 
-#Run jupyter nbconvert on lg-genpredcsreport.ipynb
-command_string = "jupyter nbconvert --no-input --execute --to pdf lg-genpredcsreport.ipynb"
-os.system ( command_string )
+    #When completed, rename the file to output filename
+    command_rename = "mv " + os.path.dirname(__file__) + "/lg-genpredcsreport.pdf " + outputfile
+    os.system ( command_rename )
+    print("Just as leopard geckos really like doing, the report {} was created.".format(outputfile) )
 
-#When completed, rename the file to output filename
-command_rename = "mv lg-genpredcsreport.pdf " + outputfile
-os.system ( command_rename )
-print("Just as leopard geckos really like doing, the report {} was created.".format(outputfile) )
+else:
+    print("As specified, only config file was created, without running notebook and generating report" )
