@@ -568,22 +568,25 @@ class ScoreData:
         #Choose regions based in the histogram shape
         #Approximate peak with gaussian
         def fgaussian(x, amplitude, mean, stddev):
-            return amplitude * np.exp( -0.5 * ((x - mean) / stddev)**2 )
+            return amplitude * np.exp( -0.5 * ((x - mean)**2 / stddev**2 ) )
 
         aguess= np.max(self.histogram)
         mguess = hist_x_vmax[0]
         popt, pcov = optimize.curve_fit(fgaussian, self.histogram_bins , self.histogram, [aguess, mguess, 1.0])
 
-        print("Gaussian fit to peak, parameters amplitude={} , mean={} ,stdev={}".format(popt[0],popt[1],popt[2]))
+        #If negative, make positive
+        stdev = abs(popt[2])
+
+        print("Gaussian fit to peak, parameters amplitude={} , mean={} ,stdev={}".format(popt[0],popt[1],stdev ))
 
         hx = []
 
         hx.append ( (hist_xmax - hist_xmin)/4 + hist_xmin )
         hx.append ( (hist_xmax + hist_xmin)/2.0 )
-        hx.append ( popt[1] - 3* popt[2] )  #At mean - 3*stdev (3 sigma) #MB
-        hx.append ( popt[1] - (3* popt[2] +popt[2]*2.35482 /2)/2 ) #Olly
-        hx.append ( popt[1] - popt[2]*2.35482 /2 ) # FHWM = 2.35482*stdev, At FWHM going up #Neville
-        hx.append ( popt[1] - popt[2]*2.35482 /4 ) # MD
+        hx.append ( popt[1] - 3* stdev )  #At mean - 3*stdev (3 sigma) #MB
+        hx.append ( popt[1] - (3* stdev + stdev*2.35482 /2)/2 ) #Olly
+        hx.append ( popt[1] - stdev*2.35482 /2 ) # FHWM = 2.35482*stdev, At FWHM going up #Neville
+        hx.append ( popt[1] - stdev*2.35482 /4 ) # MD
         hx.append ( popt[1] ) #Commonest consistency
 
         def getClosestlVoxelFromListOfIndices(listindicesandscores, Zc,Yc,Xc):
@@ -621,33 +624,128 @@ class ScoreData:
         for hx0 in hx:
             pointsOfInterest.append( \
                 getClosestlVoxelFromListOfIndices ( \
-                self.GetIndicesFromOrigDataWithScoreNear( hx0, popt[2] / 4 ), \
+                self.GetIndicesFromOrigDataWithScoreNear( hx0, stdev / 4 ), \
                 Zcenter , Ycenter, Xcenter) )
 
         return pointsOfInterest
 
 
-class GroundTruthData:
-
-    def __init__(self , filename):
-        self.filename = filename
-        self.data_da = None #Default
-
-        #Check file has h5 extension
-        fileroot , fileext = os.path.splitext(filename)
+    def SelectRegionsOfInterest_V2(self ):
+        if self.histogram is None:
+            _a, _b = self.getHistogram()
         
-        if fileext == ".h5":
-            #Try to open the file as hdf5 to a dask array object
-            #Opens file
-            fx= h5py.File(filename,'r')
-            self.data_da = da.from_array(fx['data'], chunks='auto')
-            logging.info("File " + filename + " opened successfully as hdf5 file.")
+        hist_vmax = np.amax(self.histogram)
+        hist_x_vmax = self.histogram_bins [ np.where(self.histogram == hist_vmax)[0] ]
+        
+        hist_xmin = self.data3d_vmin
+        hist_xmax = self.data3d_vmax
 
-        if self.data_da is not None :
-            #Gets vmax and vmin
-            self.vmax = da.max( self.data_da ).compute()
-            self.vmin = da.min( self.data_da ).compute()
-            logging.info("vmax=" + str(self.vmax) + ", vmin=" + str(self.vmin))
+        #Choose regions based in the histogram shape
+        #Approximate peak with gaussian
+        def fgaussian(x, amplitude, mean, stddev):
+            return amplitude * np.exp( -0.5 * ((x - mean)**2 / stddev**2 ) )
+
+        aguess= np.max(self.histogram)
+        mguess = hist_x_vmax[0]
+        popt, pcov = optimize.curve_fit(fgaussian, self.histogram_bins , self.histogram, [aguess, mguess, 1.0])
+
+        #If negative, make positive
+        stdev = abs(popt[2])
+
+        print("Gaussian fit to peak, parameters amplitude={} , mean={} ,stdev={}".format(popt[0],popt[1],stdev ))
+
+        hx = []
+
+        pos_meanminus3sigma = popt[1] - 3* stdev
+
+        hx.append ( (pos_meanminus3sigma-hist_xmin)/3 + hist_xmin )
+        #print("hx[0]= {}".format(hx[0]))
+
+        hx.append ( (pos_meanminus3sigma-hist_xmin)/3*2 + hist_xmin )
+        hx.append ( pos_meanminus3sigma )  #At mean - 3*stdev (3 sigma) #MB
+        hx.append ( popt[1] - (3* stdev + stdev*2.35482 /2)/2 ) #Olly
+        hx.append ( popt[1] - stdev*2.35482 /2 ) # FHWM = 2.35482*stdev, At FWHM going up #Neville
+        hx.append ( popt[1] - stdev*2.35482 /4 ) # MD
+        hx.append ( popt[1] ) #Commonest consistency
+
+        def getClosestlVoxelFromListOfIndices(listindicesandscores, Zc,Yc,Xc):
+            #From the list of voxel indices, get the closest voxel to point (Xc, Yc, Zc)
+            #Also returns the distance and its score
+
+            listindices = listindicesandscores[0]
+            listcscores = listindicesandscores[1]
+            
+            
+            if len(listindices) >0:
+                #First element sets the return result (default)
+                voxelresult = listindices[0]
+                voxelresult_dist = (voxelresult[0]-Zc)**2 + (voxelresult[1]-Yc)**2 + (voxelresult[2] - Xc)**2
+                voxel_cscore = listcscores[0]
+                
+                if len(listindices)>1:
+                    for j0 in range(1, len(listindices)):
+                        i0 =  listindices[j0]
+                        #print( "i0= " , i0)
+                        thisdist = math.sqrt( (i0[0]-Zc)**2 + (i0[1]-Yc)**2 + (i0[2] - Xc)**2 )
+                        if thisdist<voxelresult_dist:
+                            voxelresult = i0
+                            voxelresult_dist = thisdist
+                            voxel_cscore = listcscores[j0]
+                
+                #print ("Closest voxel is ", voxelresult , " with distance ", voxelresult_dist)
+                return voxelresult, voxelresult_dist, voxel_cscore
+        
+        Zcenter = int( (np.amax( self.zVolCentres ) - np.amin( self.zVolCentres )) /2 )
+        Ycenter = int( (np.amax( self.yVolCentres ) - np.amin( self.yVolCentres )) /2 )
+        Xcenter = int( (np.amax( self.xVolCentres ) - np.amin( self.xVolCentres )) /2 )
+
+        pointsOfInterest=[]
+
+        for hx0 in hx:
+            scorewidth= stdev / 4
+            #If no indices are found then widens search. Tested, ok
+            while True:
+                indices0 = self.GetIndicesFromOrigDataWithScoreNear( hx0, scorewidth )
+                #print("len(indices0[0]) = {}".format(len(indices0[0])))
+                #print(indices0)
+                if len(indices0[0])==0:
+                    scorewidth += stdev / 4
+                else:
+                    break
+
+
+
+            poi0 = getClosestlVoxelFromListOfIndices ( indices0, \
+                Zcenter , Ycenter, Xcenter)
+
+            #print(poi0)
+            pointsOfInterest.append( poi0 )
+                
+        return pointsOfInterest
+
+
+#This class is not being used
+# class GroundTruthData:
+
+#     def __init__(self , filename):
+#         self.filename = filename
+#         self.data_da = None #Default
+
+#         #Check file has h5 extension
+#         fileroot , fileext = os.path.splitext(filename)
+        
+#         if fileext == ".h5":
+#             #Try to open the file as hdf5 to a dask array object
+#             #Opens file
+#             fx= h5py.File(filename,'r')
+#             self.data_da = da.from_array(fx['data'], chunks='auto')
+#             logging.info("File " + filename + " opened successfully as hdf5 file.")
+
+#         if self.data_da is not None :
+#             #Gets vmax and vmin
+#             self.vmax = da.max( self.data_da ).compute()
+#             self.vmin = da.min( self.data_da ).compute()
+#             logging.info("vmax=" + str(self.vmax) + ", vmin=" + str(self.vmin))
 
 
 
