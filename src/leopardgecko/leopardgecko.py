@@ -9,7 +9,7 @@
 
 import torch
 import numpy as np
-import matplotlib.pyplot as plt #Needed here?
+#import matplotlib.pyplot as plt #Needed here?
 import time #Needed here?
 import dask.array as da
 import h5py
