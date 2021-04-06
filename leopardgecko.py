@@ -1017,4 +1017,38 @@ def SorensenDiceCoefficientCalculator3DPool (data1_da, data1_thresh, data2_da , 
         
         return SDCoeffRes
 
+def SorensenDiceCoefficientCalcWholeVolume (data1_da, data1_thresh, data2_da , data2_thresh ):
+    '''
+    Calculates Sorensen-Dice coefficient by using the formula:
+
+    SDC = 2* (data1==data2).sum / (data1.volume + data2.volume)
+
+    where (data1==data2) is volume where voxels have values for 1 when d1(z,y,x) = d2(z,,y,x) and zero otherwise
+
+    Since data1.volume = data2.volume, and using that sum/volume = average, then is simply given by
+    SDC = (data1==data2).average
+    '''
+    #This will not check whether the data is boolean or not.
+    logging.info("SorensenDiceCoefficientCalcWholeVolume")
+
+    #check shapes of data1 and data2 are the same
+    if (data1_da.shape == data2_da.shape ):
+        #Both data has the same shape
+
+        #threshold data and convert to values 0.0 and 1.0 only
+        data1_th_bool = da.where(data1_da < data1_thresh , False ,True)
+        data2_th_bool = da.where(data2_da < data2_thresh , False ,True)
+
+        logging.info ("Calculating elementwise d1==d2")
+        neq_d1d2_bool= da.equal(data1_th_bool , data2_th_bool)
+
+        #Convert
+        neq_d1d2 = neq_d1d2_bool.astype('float')
+
+        #Calculates the Sorensen-Dice coefficient as the mean of the whole array
+        sdc_wholevol = da.mean(neq_d1d2).compute()
+        
+        return sdc_wholevol
+    else:
+        return None
 
