@@ -19,7 +19,6 @@ import logging
 from scipy import optimize
 
 
-
 #For showing nested loop progress in notebook
 #from IPython.display import clear_output
 
