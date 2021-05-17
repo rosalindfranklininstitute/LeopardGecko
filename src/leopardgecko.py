@@ -57,6 +57,11 @@ class PredictedData:
             self.vmin = da.min( self.data_da ).compute()
             logging.info("vmax=" + str(self.vmax) + ", vmin=" + str(self.vmin))
     
+
+    WEIGHTMETHOD_MAXMINSQUARE = 'MaxMinSquare'
+    WEIGHTMETHOD_MAXZEROSQUARE = 'MaxZeroSquare'
+    WEIGHTMETHOD_NONE = 'None'
+
     def setWeightedDataMethod(self, method='MaxMinSquare'):
         '''
         Weights the data.
@@ -72,18 +77,26 @@ class PredictedData:
         #data_da_weighted=None
         if self.data_da is not None:
             #Use square function with minimum at the value halfway between vmax and vmin
-            if method == 'MaxMinSquare':
+            if method == WEIGHTMETHOD_MAXMINSQUARE:
                 vaverage = 0.5*( self.vmax - self.vmin)
-                self.weightedData_da = da.square(self.data_da - vaverage) #weighting values
+                self.weightDataSquareAtX(vaverage)
+                #self.weightedData_da = da.square(self.data_da - vaverage) #weighting values
                 #print ("data_da_weighted.shape = ", data_da_weighted.shape)
-                self.weightedDataAvgValue  = da.average( self.weightedData_da ).compute()
-                
+                #self.weightedDataAvgValue  = da.average( self.weightedData_da ).compute()
+            elif method == WEIGHTMETHOD_MAXZEROSQUARE:
+                x0 = self.vmax / 2.0
+                self.weightDataSquareAtX(x0)
             elif method == 'None':
                 self.weightedData_da = self.data_da
             
             self.weightedDataAvgValue  = da.average( self.weightedData_da ).compute()
             
             return self.weightedData_da , self.weightedDataAvgValue
+
+    def weightDataSquareAtX(self, x0):
+        self.weightedData_da = da.square(self.data_da - x0)
+        self.weightedDataAvgValue  = da.average( self.weightedData_da ).compute()
+        return self.weightedData_da , self.weightedDataAvgValue
 
 
     def getWeightedValueAverageOfVolume(self, coordsTuple):
