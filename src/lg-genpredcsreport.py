@@ -34,7 +34,7 @@ parser.add_argument("--avgpforcerecalc" , action='store_true' ,\
     help="If calculated average pooled data already exists it will skip calculation of the average pool data unless this flag is set to true." )
 
 parser.add_argument("--csweightingmethod" , default="MaxMinSquare" , \
-    help="Sets the weigthing method used to calculate the consistency score from the data. Default: MaxMinSquare. Other options: TODO" )
+    help="Sets the weigthing method used to calculate the consistency score from the data. Default: MaxMinSquare. Other options: MaxZeroSquare , None" )
 
 parser.add_argument("--csvolscalculatefile", \
     help='''Filename containing user defined volumes (index units) where additional reporting of the
