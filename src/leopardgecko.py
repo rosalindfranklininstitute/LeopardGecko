@@ -77,13 +77,13 @@ class PredictedData:
         #data_da_weighted=None
         if self.data_da is not None:
             #Use square function with minimum at the value halfway between vmax and vmin
-            if method == WEIGHTMETHOD_MAXMINSQUARE:
+            if method == self.WEIGHTMETHOD_MAXMINSQUARE:
                 vaverage = 0.5*( self.vmax - self.vmin)
                 self.weightDataSquareAtX(vaverage)
                 #self.weightedData_da = da.square(self.data_da - vaverage) #weighting values
                 #print ("data_da_weighted.shape = ", data_da_weighted.shape)
                 #self.weightedDataAvgValue  = da.average( self.weightedData_da ).compute()
-            elif method == WEIGHTMETHOD_MAXZEROSQUARE:
+            elif method == self.WEIGHTMETHOD_MAXZEROSQUARE:
                 x0 = self.vmax / 2.0
                 self.weightDataSquareAtX(x0)
             elif method == 'None':

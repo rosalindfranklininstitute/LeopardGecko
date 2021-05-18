@@ -21,13 +21,13 @@ parser.add_argument("--out", help="Output filename (default:, datafilename.pdf)"
 
 #average pooling arguments
 parser.add_argument("--avgpwidth", type=int, default=512, \
-    help="Chunk width (in index units) for the average pooling of consistency score calculation" )
+    help="Chunk width (in index units) for the average pooling of consistency score calculation. Default: 512." )
 
 parser.add_argument("--avgpkwidth" , type=int, default=256, \
-    help="Kernel width (in index units) for the average pooling of consistency score calculation" )
+    help="Kernel width (in index units) for the average pooling of consistency score calculation. Default: 256." )
 
 parser.add_argument("--avgpstride" , type=int, default=128, \
-    help="Stride (jumps in index units) for the average pooling of consistency score calculation" )
+    help="Stride (jumps in index units) for the average pooling of consistency score calculation. Default: 128." )
 
 #Note that action='store_true' will default to False if not specified
 parser.add_argument("--avgpforcerecalc" , action='store_true' ,\
