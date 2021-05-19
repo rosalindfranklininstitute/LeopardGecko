@@ -1,10 +1,11 @@
 #Script to generate pdf report of prediction data consistency
+#This python script must runs the notebook lg-genpredcsreport.ipynb
 
 #Accepts command line arguments
-#Generates a configuration file that will be used by jupyter notebook
-# that will generate the report.
-#In combination with jupyter nbconvert a pdf file will be generated
-#and renamed to an appropriate filename
+#Generates a configuration file that will be used by jupyter notebook g-genpredcsreport.ipynb
+# that will generate the report, in pdf file format.
+#The pdf file that will be generated will be renamed to an appropriate filename
+
 
 import argparse
 import yaml
@@ -51,7 +52,7 @@ parser.add_argument("--configonly", action='store_true' , \
     help="Specify whether only config file is desired, hence not running the notebook and not producing th pdf file")
 
 parser.add_argument("--dataoutfolder", \
-    help="Define here where output intermediate files should be saved")
+    help="Define here where output intermediate files should be saved. Default is current folder.")
 
 parser.add_argument("--dosdccalculation", \
     help="Do Sorensen-Dice coefficient calculation using filename given as the labels (in binary format)")
@@ -76,6 +77,11 @@ print ( "Report will be saved in file {}".format(outputfile) )
 #Create the configuration file
 #Saves a dictionary object containing all the settings
 
+#If no datafolder defined, use the current path as the folder
+dataoutfolder = args.dataoutfolder
+if dataoutfolder is None:
+    dataoutfolder = os.getcwd()
+
 configuration =  {"datafilename" : args.datafilename , \
     "outputfilepdf" : outputfile , \
     "avgpwidth" : args.avgpwidth ,\
@@ -85,7 +91,7 @@ configuration =  {"datafilename" : args.datafilename , \
     "csweightingmethod" : args.csweightingmethod, \
     "csvolscalculatefile" : args.csvolscalculatefile , \
     "csroimethod" : args.csroimethod ,
-    "dataoutfolder" : args.dataoutfolder, \
+    "dataoutfolder" : dataoutfolder, \
     "dosdccalculation": args.dosdccalculation \
 }
 
@@ -94,8 +100,8 @@ configuration =  {"datafilename" : args.datafilename , \
 #we are going to use the jupyter notebook and the configuration file in
 #the same folder as this python code
 thisfolder = os.path.dirname(__file__)
-configfile = os.path.dirname(__file__) + "/lg-genpredcsreport.yaml"
-notebookfile = os.path.dirname(__file__)+ "/lg-genpredcsreport.ipynb"
+configfile = thisfolder + "/lg-genpredcsreport.yaml"
+notebookfile = thisfolder + "/lg-genpredcsreport.ipynb"
 
 #Create shared config file only
 with open(configfile, 'w') as f:
@@ -108,7 +114,7 @@ if not args.configonly:
     os.system ( command_string )
 
     #When completed, rename the file to output filename
-    command_rename = "mv " + os.path.dirname(__file__) + "/lg-genpredcsreport.pdf " + outputfile
+    command_rename = "mv " + thisfolder + "/lg-genpredcsreport.pdf " + outputfile
     os.system ( command_rename )
     print("Just as leopard geckos really like doing, the report {} was created.".format(outputfile) )
 
