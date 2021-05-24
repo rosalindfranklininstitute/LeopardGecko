@@ -231,7 +231,7 @@ class ScoreData:
         
         try:
             popt, pcov = optimize.curve_fit(fgaussian, self.histogram_bins , self.histogram, [aguess, mguess, 1.0])
-        except (ValueError, RuntimeError, OptimizeWarning):
+        except:
             print("Error trying to fit gaussian to histogram.")
         else:
             print("Gaussian fit to peak, parameters amplitude={} , mean={} ,stdev={}".format(popt[0],popt[1],popt[2]))
@@ -308,7 +308,7 @@ class ScoreData:
         
         try:
             popt, pcov = optimize.curve_fit(fgaussian, self.histogram_bins , self.histogram, [aguess, mguess, 1.0])
-        except (ValueError, RuntimeError, OptimizeWarning):
+        except:
             print("Error trying to fit gaussian to histogram.")
         else:
 
@@ -390,7 +390,7 @@ class ScoreData:
 
         try:
             popt, pcov = optimize.curve_fit(fgaussian, self.histogram_bins , self.histogram, [aguess, mguess, 1.0])
-        except (ValueError, RuntimeError, OptimizeWarning):
+        except:
             print("Error trying to fit gaussian to histogram.")
         else:
             #If negative, make positive
