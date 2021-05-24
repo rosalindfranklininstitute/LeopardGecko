@@ -25,8 +25,8 @@ Class to store and analyse score data. Contains routines to generate histograms 
 
 
 ## lg-genpredcsreport.py
-Utility that can be used to generate a report of consistency score analysis from a combined prediction file. This script usedslg-genpredreport.ipynb notebook. Information about how to use and parameters to use can be obtained by running
-' python lg-genpredcsreport.ipynb --help '
+Utility that can be used to generate a report of consistency score analysis from a combined prediction file. This script uses lg-genpredreport.ipynb notebook. Information about how to use and parameters to use can be obtained by running
+`python lg-genpredcsreport.ipynb --help`
 
 
 ## (old) AvgPooling3DConsistencyData.ipynb
