@@ -30,7 +30,9 @@ def lizzie():
         "She has geckifing powers from her petrifying stare.")
 
 class PredictedData:
-
+    '''
+    Class to handle multiply-predicted combined data typically 12-way combined binary predictions (Olly's 2D unet output)
+    '''
     def __init__(self , filename):
         self.filename = filename
         self.data_da = None #Default
@@ -152,6 +154,10 @@ class ScoreData:
         return newscoredata
 
     def saveToFile(self, filename):
+        '''
+        Saves ScoreData to a hdf5 file, containing the data in /data, and also the respective
+        X,Y and Z indices
+        '''
         with h5py.File(filename ,'w') as f:
             f['/data']= self.data3d
             f['/Z']= self.zVolCentres
@@ -204,6 +210,10 @@ class ScoreData:
         return self.GetIndicesFromOrigDataWithScoreBetween( cscore_low, cscore_high )
 
     def getHistogram(self):
+        '''
+        Gets an histogram of the score values
+        Returns tuple (histrogram,bins), but also stores it locally in the class
+        '''
         self.histogram , binsedge = np.histogram(self.data3d , bins='auto')
         self.histogram_bins = binsedge[:-1]
         return self.histogram , self.histogram_bins
@@ -773,11 +783,18 @@ def SorensenDiceCoefficientCalculator3DPool (data1_da, data1_thresh, data2_da , 
 
 def MetricAccuracyWholeVolume ( data1_da, data2_da ):
     '''
-    Calculates Accuracy metric by using the formula:
+    Calculates Accuracy metric of the whole volume by using the formula:
 
     Accuracy = (data1==data2).sum / data1(2).volume
 
     where (data1==data2) is volume where voxels have values for 1 when d1(z,y,x) = d2(z,,y,x) and zero otherwise
+
+    Parameters:
+    data1_da , data2_da : Volume data to compare, often with integer values per voxel representing class/segmentation.
+    Data type is daskarray format
+
+    Returns:
+    A single value corresponding to the Accuracy score between the two data sets across the whole volume
 
     '''
     #This will not check whether the data is boolean or not.
@@ -805,6 +822,12 @@ def MetricSorensenDiceCoefficientWholeVolume (data1bool_da, data2bool_da ):
     Calculates Sorensen-Dice coefficient by using the formula:
 
     SDC = 2* (data1bin_da * data2bin_da).sum / (data1bin_da.sum() + data2bin_da.sum)
+
+    Parameters:
+    data1bool_da , data2bool_da : Volume data with zeros (background) and ones (mask) per voxel. Data type is daskarray
+
+    Returns:
+    A single value corresponding to the Sorensen-Dice score between the two data sets across the whole volume
 
     '''
     #This will not check whether the data is boolean or not.
