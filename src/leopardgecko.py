@@ -686,92 +686,21 @@ def AvgPool3D_LargeData(data3d, w_avg = 512, k_width=256 , s_stride=8 ):
     return res
 
 
-# def SorensenDiceCoefficientCalculator3DPool (data1_da, data1_thresh, data2_da , data2_thresh , w_avg , k_width , s_stride ):
-
-#     #This will not check whether the data is boolean or not.
-#     logging.info("SorensenDiceCoefficientCalculator3DPool")
-
-#     #check shapes of data1 and data2 are the same
-#     if (data1_da.shape == data2_da.shape ):
-#         #Both data has the same shape
-
-#         #threshold data and convert to values 0.0 and 1.0 only
-#         data1_th_bool = da.where(data1_da < data1_thresh , False ,True)
-#         data2_th_bool = da.where(data2_da < data2_thresh , False ,True)
-
-#         logging.info ("Calculating elementwise d1==d2")
-#         neq_d1d2_bool= da.equal(data1_th_bool , data2_th_bool)
-
-#         #Convert
-#         neq_d1d2 = neq_d1d2_bool.astype('float')
-#         #Do calculation similar to average pooling, but get the sum back by multiplying by the volume (number of elements)
-#         logging.info ("AvgPool3D_LargeData of neq_d1d2")
-#         SDnumerator_SC = AvgPool3D_LargeData( neq_d1d2 , w_avg , k_width , s_stride )
-
-        
-#         #data1_np_th= data1_np_th_bool.astype('uint8')
-#         data1_th = data1_th_bool.astype('float')
-#         logging.info ("AvgPool3D_LargeData of data1_th")
-#         SDden_d1_SC = AvgPool3D_LargeData( data1_th , w_avg , k_width , s_stride )
-
-#         data2_th = data2_th_bool.astype('float')
-#         logging.info ("AvgPool3D_LargeData of data1_th_int")
-#         SDden_d2_SC = AvgPool3D_LargeData( data2_th , w_avg , k_width , s_stride )
-
-#         #Calculates the SD coefficient on the pooled data, pixelwise
-#         SDCoeffRes = ScoreData( 2*SDnumerator_SC.data3d /( SDden_d1_SC.data3d + SDden_d2_SC.data3d ) , \
-#             SDnumerator_SC.zVolCentres, SDnumerator_SC.yVolCentres , SDnumerator_SC.xVolCentres )
-        
-#         return SDCoeffRes
-
-
-
-def SorensenDiceCoefficientCalculator3DPool (data1_da, data1_thresh, data2_da , data2_thresh , w_avg , k_width , s_stride ):
-    '''
-    Calculates Sorensen-Dice coefficient by using the formula:
-
-    SDC = 2* (data1==data2).sum / (data1.volume + data2.volume)
-
-    where (data1==data2) is volume where voxels have values for 1 when d1(z,y,x) = d2(z,,y,x) and zero otherwise
-
-    Since data1.volume = data2.volume, and using that sum/volume = average, then is simply given by
-    SDC = (data1==data2).average
-    '''
-    #This will not check whether the data is boolean or not.
-    logging.info("SorensenDiceCoefficientCalculator3DPool")
-
-    #check shapes of data1 and data2 are the same
-    if (data1_da.shape == data2_da.shape ):
-        #Both data has the same shape
-
-        #threshold data and convert to values 0.0 and 1.0 only
-        data1_th_bool = da.where(data1_da < data1_thresh , False ,True)
-        data2_th_bool = da.where(data2_da < data2_thresh , False ,True)
-
-        logging.info ("Calculating elementwise d1==d2")
-        neq_d1d2_bool= da.equal(data1_th_bool , data2_th_bool)
-
-        #Convert
-        neq_d1d2 = neq_d1d2_bool.astype('float')
-        #Do calculation similar to average pooling, but get the sum back by multiplying by the volume (number of elements)
-        logging.info ("AvgPool3D_LargeData of neq_d1d2")
-        SDnumerator_SC = AvgPool3D_LargeData( neq_d1d2 , w_avg , k_width , s_stride )
-
-        SDCoeffRes = SDnumerator_SC
-        
-        return SDCoeffRes
-
 def SorensenDiceCoefficientCalcWholeVolume (data1_da, data1_thresh, data2_da , data2_thresh ):
     '''
+    DEPRECATED: This is not Dice coefficient but 'Accuracy' metric
+
     Calculates Sorensen-Dice coefficient by using the formula:
-
     SDC = 2* (data1==data2).sum / (data1.volume + data2.volume)
-
     where (data1==data2) is volume where voxels have values for 1 when d1(z,y,x) = d2(z,,y,x) and zero otherwise
-
     Since data1.volume = data2.volume, and using that sum/volume = average, then is simply given by
     SDC = (data1==data2).average
     '''
+
+    print("This is function is deprecated because of inconsistent metric name.",
+        "It should be named Accuracy.",
+        "Use alternative MetricAccuracyWholeVolume() or MetricSorensenDiceCoefficientWholeVolume() instead.",
+        "It is only available here because some old calculations used it.")
     #This will not check whether the data is boolean or not.
     logging.info("SorensenDiceCoefficientCalcWholeVolume")
 
@@ -796,3 +725,107 @@ def SorensenDiceCoefficientCalcWholeVolume (data1_da, data1_thresh, data2_da , d
     else:
         return None
 
+
+#The SDC in this AvgPool calculation in not a proper dice coefficient but rather Accuracy-metric
+
+def SorensenDiceCoefficientCalculator3DPool (data1_da, data1_thresh, data2_da , data2_thresh , w_avg , k_width , s_stride ):
+    '''
+    DEPRECATED: This calculates metric Accuracy, not Dice score
+
+    Calculates Sorensen-Dice coefficient by using the formula:
+
+    SDC = 2* (data1==data2).sum / (data1.volume + data2.volume)
+
+    where (data1==data2) is volume where voxels have values for 1 when d1(z,y,x) = d2(z,,y,x) and zero otherwise
+
+    Since data1.volume = data2.volume, and using that sum/volume = average, then is simply given by
+    SDC = (data1==data2).average
+    '''
+    #This will not check whether the data is boolean or not.
+    logging.info("SorensenDiceCoefficientCalculator3DPool")
+
+    print("This function is deprecated because of metric name error. ",
+        "It should be called Accuracy. ",
+        "It only remains here because some old calculations use this."
+    )
+
+    #check shapes of data1 and data2 are the same
+    if (data1_da.shape == data2_da.shape ):
+        #Both data has the same shape
+
+        #threshold data and convert to values 0.0 and 1.0 only
+        data1_th_bool = da.where(data1_da < data1_thresh , False ,True)
+        data2_th_bool = da.where(data2_da < data2_thresh , False ,True)
+
+        logging.info ("Calculating elementwise d1==d2")
+        neq_d1d2_bool= da.equal(data1_th_bool , data2_th_bool)
+
+        #Convert
+        neq_d1d2 = neq_d1d2_bool.astype('float')
+        #Do calculation similar to average pooling, but get the sum back by multiplying by the volume (number of elements)
+        logging.info ("AvgPool3D_LargeData of neq_d1d2")
+        SDnumerator_SC = AvgPool3D_LargeData( neq_d1d2 , w_avg , k_width , s_stride )
+
+        SDCoeffRes = SDnumerator_SC
+        
+        return SDCoeffRes
+
+
+def MetricAccuracyWholeVolume ( data1_da, data2_da ):
+    '''
+    Calculates Accuracy metric by using the formula:
+
+    Accuracy = (data1==data2).sum / data1(2).volume
+
+    where (data1==data2) is volume where voxels have values for 1 when d1(z,y,x) = d2(z,,y,x) and zero otherwise
+
+    '''
+    #This will not check whether the data is boolean or not.
+    logging.info("SorensenDiceCoefficientCalcWholeVolume")
+
+    #check shapes of data1 and data2 are the same
+    if (data1_da.shape == data2_da.shape ):
+        #Both data has the same shape
+
+        logging.info ("Calculating elementwise d1==d2")
+        neq_d1d2_bool= da.equal(data1_da , data2_da)
+
+        #Convert
+        neq_d1d2 = neq_d1d2_bool.astype('float')
+
+        #Calculates the Accuracy-metric coefficient as the mean of the whole array
+        ret = da.mean(neq_d1d2).compute()
+        
+        return ret
+    else:
+        return None
+
+def MetricSorensenDiceCoefficientWholeVolume (data1bool_da, data2bool_da ):
+    '''
+    Calculates Sorensen-Dice coefficient by using the formula:
+
+    SDC = 2* (data1bin_da * data2bin_da).sum / (data1bin_da.sum() + data2bin_da.sum)
+
+    '''
+    #This will not check whether the data is boolean or not.
+    #logging.info("SorensenDiceCoefficientCalcWholeVolume")
+
+    #Assumes data has values 0 or 1
+    #It will not work with multiple segmented images
+
+    #check shapes of data1 and data2 are the same
+    if (data1bool_da.shape == data2bool_da.shape ):
+        #Both data has the same shape
+
+        im_intersection = (data1bool_da * data2bool_da).sum().compute()
+        im_sum = (data1bool_da.sum() + data2bool_da.sum()).compute()
+
+        if im_sum==0:
+            return None
+
+        #Calculates the Sorensen-Dice coefficient as the mean of the whole array
+        sdc_wholevol =  2.0 * im_intersection / im_sum
+        
+        return sdc_wholevol
+    else:
+        return None
