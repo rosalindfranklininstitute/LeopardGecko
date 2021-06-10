@@ -852,3 +852,154 @@ def MetricSorensenDiceCoefficientWholeVolume (data1bool_da, data2bool_da ):
         return sdc_wholevol
     else:
         return None
+
+class MultiClassMultiWayPredictOptimizer:
+    '''
+    This class contains functions that can optimize choice of per-voxel multi-class segmentation
+    from nways (typically 12) predictions.
+    
+    This code was tested only on random data
+    It needs to be tested with real data and respective ground truth
+
+    This code was prototyped in
+    /workspace/for_luis/Programming/Tests/TestMultiClassMultiWayPredictOptimizer.ipynb
+    '''
+    #TODO: add self keyword to all methods in this class
+
+    def getSegmentationProjMatrix(self, vector3 , nclasses, nways):
+    
+        alpha = np.zeros((nclasses,nclasses))
+        svector = np.zeros(nclasses)
+
+        for segm0 in range(nclasses):
+            #svector0 = np.zeros(nclasses)
+            #svector0[segm0] = -nways
+            for segm1 in range(nclasses):
+                value=0 #Default result value
+                if segm0 != segm1 :
+                    svector = np.zeros(nclasses)
+                    svector[segm1]= nways
+                    svector[segm0] = -nways
+                    #svector should be s1 - s0 (vectors) 
+                    
+                    #print(f"vector3={vector3} ; svector={svector}")
+                    
+                    value = np.dot(vector3, svector )
+                        
+                alpha[segm0,segm1] = value
+        
+        return alpha
+
+    def getClassNumber(self, v,p , nclasses, nways):
+        '''Given a vector and a criteria point get the class number'''
+        Pm = self.getSegmentationProjMatrix(p , nclasses, nways)
+        Vm = self.getSegmentationProjMatrix(v, nclasses, nways)
+        
+        #print(f"Pm = {Pm}")
+        #print(f"Vm = {Vm}")
+        
+        Cm = Vm - Pm #Compare matrix
+        #print(f"Cm = {Cm}")
+        
+        # If for a given class, all the 'compare' values are <0 then identify as being part of the class
+        row_maxs = np.amax(Cm , 1)
+        #print(f"row_maxs = {row_maxs}")
+        
+        #print(f"len(row_maxs) = {len(row_maxs)}")
+        #First row that <=0 sets as the identified class
+        for rown in range(len(row_maxs)):
+            #print(f"rown = {rown}")
+            if row_maxs[rown]<=0 :
+                #res=rown
+                #print(f"res = {res}")
+                return rown
+        
+        #Otherwise but unlikely
+        print("Could not identify the segmentation class. Returning -1.")
+        return -1
+
+    def identifiyClassFromVolsAndPCriteria(self, vols, p ):
+        vols_shape = vols.shape
+        
+        nways= p.sum() #one way to get nways
+        #print(f"nways from p_criteria = {nways}")
+        nclasses = vols_shape[0]
+        #print(f"nclasses from vols_shape[0] = {nclasses}")
+        
+        #Initialise values to -1 (=no class identified)
+        classid_vol = np.full( (vols.shape[1], vols.shape[2], vols.shape[3]) , -1 )
+        
+        for iz in range(vols_shape[1]):
+            for iy in range(vols_shape[2]):
+                for ix in range(vols_shape[3]):
+                    v = vols[:, ix,iy,iz]
+                    #print(f"v= {v}")
+                    
+                    classid_vol[iz,iy,ix] = self.getClassNumber(v , p , nclasses, nways)
+        
+        return classid_vol
+
+    def MetricAccuracyScoreOfNPVols(self, vol0, vol1):
+        equalvol = np.equal(vol0,vol1).astype(np.float32)
+        
+        res = equalvol.mean()
+        return res
+
+    def getMetricAccuracyFromClassVolsAndPcrit(self, a_all,gt_rnd , pgrad):
+        idvol = self.identifiyClassFromVolsAndPCriteria(a_all, pgrad)
+        accvalue = self.MetricAccuracyScoreOfNPVols(idvol, gt_rnd)
+        return accvalue
+
+
+    def getCombinations(self, nways, nclasses):
+        def _getCombinations(inextdim,pbase):
+            #plist_ret = np.zeros(nclasses)
+            plist_ret = []
+            #print(f"inextdim = {inextdim}")
+            if inextdim==nclasses-1:
+                #Last index
+                #plist_ret.append( nways - pbase.sum())
+                pbase1= np.copy(pbase)
+                pbase1[inextdim] = nways - pbase.sum()
+                plist_ret= [pbase1]
+                #print(f"Last index; plist_ret={plist_ret}")
+            else:
+                for i in range(0, int(nways-pbase.sum()+1) ):
+                    #print(f"for inextdim = {inextdim} ; i={i} ")
+                    pbase1= np.copy(pbase)
+                    pbase1[inextdim] = i
+                    inextdim0 = inextdim+1
+                    plist = _getCombinations(inextdim0, pbase1)
+                    #print(f"for inextdim = {inextdim} ; i={i} ; plist={plist}")
+
+                    plist_ret.extend(plist)
+                    #plist_ret.append(plist)
+
+            #print (f"plist_ret = {plist_ret}")
+            return plist_ret
+        
+        pbase0 = np.zeros(nclasses, dtype=int)
+        pcomb0= _getCombinations(0, pbase0)
+        
+        return pcomb0
+    
+    def getPCritForMaxAccMetric(self, a_all0, gt_rnd0, nways, nclasses):
+        #Do all combinations of pgrad
+        pvalues0= self.getCombinations(nways, nclasses)
+        
+        #vfunc_getAcc = np.vectorize( getMetricAccuracyFromClassVolsAndPcrit , excluded=['a_all', 'gt_rnd'] )
+        #accvalues= vfunc_getAcc(a_all=a_all0 , gt_rnd=gt_rnd0 , pvalues0)
+        #Does not work
+        
+        npvalues = len(pvalues0)
+        
+        accvalues = np.zeros(npvalues)
+        
+        for i in range(npvalues):
+            accvalues[i] =  self.getMetricAccuracyFromClassVolsAndPcrit(a_all0, gt_rnd0 , pvalues0[i])
+        
+        #print (accvalues)
+        
+        imax = np.argmax(accvalues)
+        
+        return pvalues0[imax] , accvalues[imax]
