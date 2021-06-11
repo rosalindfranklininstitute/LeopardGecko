@@ -864,10 +864,14 @@ class MultiClassMultiWayPredictOptimizer:
     This code was prototyped in
     /workspace/for_luis/Programming/Tests/TestMultiClassMultiWayPredictOptimizer.ipynb
     '''
-    #TODO: add self keyword to all methods in this class
 
-    def getSegmentationProjMatrix(self, vector3 , nclasses, nways):
-    
+    def getSegmentationProjMatrix(self, hvector , nclasses, nways):
+        '''
+        Gets the projected hypervector hvector onto each between-segmentations vector
+        The 2-dimensional matrix represents all the binary combinations,
+        with the value being after projecting hvector
+        '''
+
         alpha = np.zeros((nclasses,nclasses))
         svector = np.zeros(nclasses)
 
@@ -882,16 +886,18 @@ class MultiClassMultiWayPredictOptimizer:
                     svector[segm0] = -nways
                     #svector should be s1 - s0 (vectors) 
                     
-                    #print(f"vector3={vector3} ; svector={svector}")
+                    #print(f"hvector={hvector} ; svector={svector}")
                     
-                    value = np.dot(vector3, svector )
+                    value = np.dot(hvector, svector )
                         
                 alpha[segm0,segm1] = value
         
         return alpha
 
     def getClassNumber(self, v,p , nclasses, nways):
-        '''Given a vector and a criteria point get the class number'''
+        '''
+        Given a vector and a criteria point get the class number
+        '''
         Pm = self.getSegmentationProjMatrix(p , nclasses, nways)
         Vm = self.getSegmentationProjMatrix(v, nclasses, nways)
         
@@ -919,14 +925,23 @@ class MultiClassMultiWayPredictOptimizer:
         return -1
 
     def identifiyClassFromVolsAndPCriteria(self, vols, p ):
+        '''
+        With a given p vector value, identify the class for each voxel
+        from the nway volume corresponding to each class
+        '''
+
         vols_shape = vols.shape
         
-        nways= p.sum() #one way to get nways
+        if len(vols_shape) != 4:
+            print("vols is not 4-dimensional. exiting with None")
+            return None
+        
+        nways= p.sum() #infers nways
         #print(f"nways from p_criteria = {nways}")
-        nclasses = vols_shape[0]
+        nclasses = vols_shape[0] #infers nclasses from the shape of the first index
         #print(f"nclasses from vols_shape[0] = {nclasses}")
         
-        #Initialise values to -1 (=no class identified)
+        #Initialise values to -1 (=no class identified for each voxel)
         classid_vol = np.full( (vols.shape[1], vols.shape[2], vols.shape[3]) , -1 )
         
         for iz in range(vols_shape[1]):
@@ -940,18 +955,31 @@ class MultiClassMultiWayPredictOptimizer:
         return classid_vol
 
     def MetricAccuracyScoreOfNPVols(self, vol0, vol1):
+        '''
+        Get the whole-volume Accuracy metric between two volumes that have been segmented
+        '''
         equalvol = np.equal(vol0,vol1).astype(np.float32)
         
         res = equalvol.mean()
         return res
 
     def getMetricAccuracyFromClassVolsAndPcrit(self, a_all,gt_rnd , pgrad):
+        '''
+        Get the Accuracy metric metric considering the p-criteria pgrad given
+        and between two vols-with-all-classes a_all and ground-truth gt_rnd
+        '''
+
         idvol = self.identifiyClassFromVolsAndPCriteria(a_all, pgrad)
         accvalue = self.MetricAccuracyScoreOfNPVols(idvol, gt_rnd)
         return accvalue
 
 
     def getCombinations(self, nways, nclasses):
+        '''
+        Gets all the possible integer-value combinations for pcriteria value
+        from nways and nclasses.
+        Returns a list with all the possible values
+        '''
         def _getCombinations(inextdim,pbase):
             #plist_ret = np.zeros(nclasses)
             plist_ret = []
@@ -984,7 +1012,12 @@ class MultiClassMultiWayPredictOptimizer:
         return pcomb0
     
     def getPCritForMaxAccMetric(self, a_all0, gt_rnd0, nways, nclasses):
-        #Do all combinations of pgrad
+        '''
+        Determines which value of pcrit gives the best score Accuracy.
+        Returns the pcrit hypervector and the maximumly determined metric value 
+        '''
+        
+        #Do for all interger combinations of pgrad
         pvalues0= self.getCombinations(nways, nclasses)
         
         #vfunc_getAcc = np.vectorize( getMetricAccuracyFromClassVolsAndPcrit , excluded=['a_all', 'gt_rnd'] )
