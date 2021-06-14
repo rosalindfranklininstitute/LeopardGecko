@@ -954,7 +954,10 @@ class MultiClassMultiWayPredictOptimizer:
         
         return classid_vol
 
-    def MetricAccuracyScoreOfNPVols(self, vol0, vol1):
+    METRICACCURACY=0
+    METRICDICE=1
+
+    def MetricScoreOfVols_Accuracy(self, vol0, vol1):
         '''
         Get the whole-volume Accuracy metric between two volumes that have been segmented
         '''
@@ -963,14 +966,63 @@ class MultiClassMultiWayPredictOptimizer:
         res = equalvol.mean()
         return res
 
-    def getMetricAccuracyFromClassVolsAndPcrit(self, a_all,gt_rnd , pgrad):
+    def MetricScoreOfVols_Dice(self, vol0, vol1):
         '''
-        Get the Accuracy metric metric considering the p-criteria pgrad given
+        Get the whole-volume Multiclass metric between two volumes that have been segmented
+        '''
+        
+        #Check both volumes dtype is int
+
+        if not ( np.issubdtype(vol0.dtype, np.integer) and np.issubdtype(vol1.dtype, np.integer) ):
+            print ("volumes are not integer type. Try to convert them")
+            vol0 = vol0.astype(np.int8)
+            vol1= vol1.astype(np.int8)
+
+            equalvol = np.equal(vol0,vol1).astype(np.float32)
+            
+            res = equalvol.mean()
+
+        #Number of segmentations
+        nseg = np.max(vol0)
+
+        if nseg != np.max(vol1):
+            logging.warning ("Number of segmentations between volumes is different.")
+
+        #Calculate dice of each metric
+        #Similar to code in https://github.com/fastai/fastai/blob/master/fastai/metrics.py#L343
+        dicescores=np.array([])
+        for iseg in range(1,nseg+1): #include last value , discards background (iseg=0)
+            p = np.where(vol0 == iseg, 1, 0)
+            t = np.where(vol1 == iseg, 1, 0)
+            c_inter = (p*t).float().sum().item()
+            c_union = (p+t).float().sum().item()
+
+            dicescore= 2.*self.inter[c]/self.union[c] if self.union[c] > 0 else np.nan
+
+            dicescores = np.append(dicescores, dicescore)
+
+        dicescore_all = np.nanmean(dicescores)
+
+        return dicescore_all
+
+
+    def getMetricScoreFromClassVolsAndPcrit(self, a_all,gt_rnd , pgrad, metric=METRICDICE):
+        '''
+        Get the score metric considering the p-criteria pgrad given
         and between two vols-with-all-classes a_all and ground-truth gt_rnd
         '''
 
         idvol = self.identifiyClassFromVolsAndPCriteria(a_all, pgrad)
-        accvalue = self.MetricAccuracyScoreOfNPVols(idvol, gt_rnd)
+        
+        if metric == self.METRICDICE:
+            accvalue=self.MetricScoreOfVols_Dice(idvol,gt_rnd)
+        elif metric == self.METRICACCURACY:
+            accvalue = self.MetricScoreOfVols_Accuracy(idvol, gt_rnd)
+        
+        #TODO: Cosnder adding other metrics
+        else:
+            accvalue=None
+
         return accvalue
 
 
@@ -1011,7 +1063,7 @@ class MultiClassMultiWayPredictOptimizer:
         
         return pcomb0
     
-    def getPCritForMaxAccMetric(self, a_all0, gt_rnd0, nways, nclasses):
+    def getPCritForMaxMetric(self, a_all0, gt_rnd0, nways, nclasses, metric=METRICDICE):
         '''
         Determines which value of pcrit gives the best score Accuracy.
         Returns the pcrit hypervector and the maximumly determined metric value 
@@ -1029,7 +1081,7 @@ class MultiClassMultiWayPredictOptimizer:
         accvalues = np.zeros(npvalues)
         
         for i in range(npvalues):
-            accvalues[i] =  self.getMetricAccuracyFromClassVolsAndPcrit(a_all0, gt_rnd0 , pvalues0[i])
+            accvalues[i] =  self.getMetricScoreFromClassVolsAndPcrit(a_all0, gt_rnd0 , pvalues0[i], metric)
         
         #print (accvalues)
         
