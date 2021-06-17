@@ -916,7 +916,7 @@ class MultiClassMultiWayPredictOptimizer:
         return alpha
 
 
-    def __init__(self, nclasses, nways):
+    def __init__(self, nclasses, nways, useBckgnd = False):
         #Initialises table of ProjMatrices for speed calculations
 
 
@@ -928,6 +928,8 @@ class MultiClassMultiWayPredictOptimizer:
 
         self.pcrit = None
         self.from_hvect_to_segm_dict = None
+
+        self.useBckgnd = useBckgnd
 
     def isValidHvector(self, hvector):
         '''
@@ -1009,11 +1011,14 @@ class MultiClassMultiWayPredictOptimizer:
 
     def identifiyClassFromVols(self, vols):
         '''
-        With a given p vector value, identify the class for each voxel
-        from the nway volume corresponding to each class
+        With identify the class for each voxel in the volumes.
+        Assumes that:
+            vols first index corresponds to the segmentation class nway score
+            Each voxel has numbers 0 to nways
+
         '''
 
-        logging.info("identifiyClassFromVolsAndPCriteria()")
+        logging.info("identifiyClassFromVols()")
 
         vols_shape = vols.shape
         
@@ -1027,7 +1032,7 @@ class MultiClassMultiWayPredictOptimizer:
         #print(f"nclasses from vols_shape[0] = {nclasses}")
         
         #Initialise values to -1 (=no class identified for each voxel)
-        classid_vol = np.full( (vols.shape[1], vols.shape[2], vols.shape[3]) , -1 )
+        classid_vol = np.full( (vols.shape[1], vols.shape[2], vols.shape[3]) , -1 , dtype=np.int8)
         
         for iz in range(vols_shape[1]):
             #logging.info(f"iz={iz} / {vols_shape[1]}")
@@ -1080,11 +1085,14 @@ class MultiClassMultiWayPredictOptimizer:
 
         if nseg != np.max(vol1):
             logging.warning ("Number of segmentations between volumes is different.")
-
+        
+        isegstart=1
+        if self.useBckgnd: isegstart=0
+        
         #Calculate dice of each metric
         #Similar to code in https://github.com/fastai/fastai/blob/master/fastai/metrics.py#L343
         dicescores=np.array([])
-        for iseg in range(1,nseg+1): #include last value , discards background (iseg=0)
+        for iseg in range(isegstart,nseg+1): #include last value , discards background (iseg=0)
             p = np.where(vol0 == iseg, 1, 0)
             t = np.where(vol1 == iseg, 1, 0)
             c_inter = (p*t).astype(np.float32).sum()
@@ -1100,7 +1108,7 @@ class MultiClassMultiWayPredictOptimizer:
         return dicescore_all
 
 
-    def getMetricScoreFromClassVols(self, a_all, gt_rnd , metric=METRICDICE ):
+    def getMetricScoreFromClassVols(self, a_all, gt_rnd , metric=METRICDICE):
         '''
         Get the score metric considering the p-criteria pgrad given
         and between two vols-with-all-classes a_all and ground-truth gt_rnd
@@ -1110,8 +1118,10 @@ class MultiClassMultiWayPredictOptimizer:
         idvol = self.identifiyClassFromVols(a_all)
         
         if metric == self.METRICDICE:
+            logging.info(f"metric= Dice , useBckgnd = {self.useBckgnd}")
             accvalue=self.MetricScoreOfVols_Dice(idvol,gt_rnd)
         elif metric == self.METRICACCURACY:
+            logging.info("metric= Accuracy")
             accvalue = self.MetricScoreOfVols_Accuracy(idvol, gt_rnd)
         
         #TODO: Consider adding other metrics
