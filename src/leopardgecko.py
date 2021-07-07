@@ -942,6 +942,13 @@ class MultiClassMultiWayPredictOptimizer:
         return False
 
     def set_pcrit(self, pcrit):
+        '''
+        Sets the hypervector pcrit.
+        This is the criteria that is used to decide which class a given hvector belongs to.
+        This pcrit is a hvector itself.
+
+        '''
+        
         #self.p_ProjMatrix= self._cProjMatrices.getProjMatrixForHypervector(pcrit)
          #this will be useful to get the matrices for evaluating the class
 
@@ -967,7 +974,7 @@ class MultiClassMultiWayPredictOptimizer:
             #self.from_hvect_to_segm_dict[hvector0] = class0
 
     
-    def getClassNumber(self, v_tuple):
+    def getClassNumber(self, hvector_tuple):
         '''
         Given a (hyper)vector v gets the class number
         Uses the dictionary if available
@@ -979,15 +986,15 @@ class MultiClassMultiWayPredictOptimizer:
 
         if not self.from_hvect_to_segm_dict is None:
             #Check if -hvector v is available
-            if v_tuple in self.from_hvect_to_segm_dict:
+            if hvector_tuple in self.from_hvect_to_segm_dict:
                 #get the class value
-                nclass0 = self.from_hvect_to_segm_dict[v_tuple]
+                nclass0 = self.from_hvect_to_segm_dict[hvector_tuple]
 
         if  nclass0 is None:
             #Calculate class and
             #Add new element to dictionary
             Pm = self.getSegmentationProjMatrix(self.pcrit)
-            Vm = self.getSegmentationProjMatrix(v_tuple)
+            Vm = self.getSegmentationProjMatrix(hvector_tuple)
 
             Cm = Vm - Pm #Compare matrix
 
@@ -1005,13 +1012,13 @@ class MultiClassMultiWayPredictOptimizer:
                     nclass = rown
                     break
             
-            self.from_hvect_to_segm_dict[v_tuple] = nclass
+            self.from_hvect_to_segm_dict[hvector_tuple] = nclass
 
         return nclass0
 
     def identifiyClassFromVols(self, vols):
         '''
-        With identify the class for each voxel in the volumes.
+        Identifies the class for each voxel in the volumes.
         Assumes that:
             vols first index corresponds to the segmentation class nway score
             Each voxel has numbers 0 to nways
@@ -1108,27 +1115,29 @@ class MultiClassMultiWayPredictOptimizer:
         return dicescore_all
 
 
-    def getMetricScoreFromClassVols(self, a_all, gt_rnd , metric=METRICDICE):
+    def getMetricScoreWithPcritFromClassVols(self, a_all, gt_rnd , metric=METRICDICE):
         '''
         Get the score metric considering the p-criteria pgrad given
         and between two vols-with-all-classes a_all and ground-truth gt_rnd
-        '''
-        logging.info("getMetricScoreFromClassVols()")
 
-        idvol = self.identifiyClassFromVols(a_all)
+        Returns the value of the metric and the 'classed' volume
+        '''
+        logging.info("getMetricScoreWithPcritFromClassVols()")
+
+        classed_vol = self.identifiyClassFromVols(a_all)
         
         if metric == self.METRICDICE:
             logging.info(f"metric= Dice , useBckgnd = {self.useBckgnd}")
-            accvalue=self.MetricScoreOfVols_Dice(idvol,gt_rnd)
+            accvalue=self.MetricScoreOfVols_Dice(classed_vol,gt_rnd)
         elif metric == self.METRICACCURACY:
             logging.info("metric= Accuracy")
-            accvalue = self.MetricScoreOfVols_Accuracy(idvol, gt_rnd)
+            accvalue = self.MetricScoreOfVols_Accuracy(classed_vol, gt_rnd)
         
         #TODO: Consider adding other metrics
         else:
             accvalue=None
 
-        return accvalue
+        return accvalue , classed_vol
 
 
     def getCombinations(self):
@@ -1203,8 +1212,8 @@ class MultiClassMultiWayPredictOptimizer:
 
             self.set_pcrit(pvalues0[i])
 
-            #metricvalues[i] =  self.getMetricScoreFromClassVolsAndPcrit(a_all0, gt_rnd0 , pvalues0[i], metric)
-            metricvalues[i] =  self.getMetricScoreFromClassVols(a_all0, gt_rnd0 , metric)
+            #metricvalues[i] =  self.getMetricScoreWithPcritFromClassVolsAndPcrit(a_all0, gt_rnd0 , pvalues0[i], metric)
+            metricvalues[i] , _ =  self.getMetricScoreWithPcritFromClassVols(a_all0, gt_rnd0 , metric)
 
             logging.info(f"metricvalue = {metricvalues[i]}")
 
@@ -1219,4 +1228,17 @@ class MultiClassMultiWayPredictOptimizer:
         
         imax = np.argmax(metricvalues)
         
-        return pvalues0[imax] , metricvalues[imax]
+        pvaluemax= pvalues0[imax]
+
+        #gets the volume that gives max metric
+        self.set_pcrit(pvaluemax)
+        metric_pmax, classedvol_pmax= self.getMetricScoreWithPcritFromClassVols(a_all0, gt_rnd0 , metric)
+        
+        if savemetricdatafile is not None:
+            #savetext = savetext+ f"{pvalues0[i]} , {metricvalues[i]} \n"
+            saveline= f"pvalue for max metric= {metric_pmax} , with score = {classedvol_pmax}"
+
+            with open(savemetricdatafile, "a") as myfile:
+                myfile.write(saveline)
+
+        return pvaluemax, metric_pmax , classedvol_pmax
