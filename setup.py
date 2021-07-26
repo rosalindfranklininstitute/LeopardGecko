@@ -13,7 +13,7 @@ setup(
     description = 'Tools to analyse and process results from predicted segmentation of microscopy volumetric tomography data',
     url = 'https://github.com/rosalindfranklininstitute/LeopardGecko',
     author = 'Luis Perdigao',
-    author_email='luis.perdigao@rfi.ac.uk'
+    author_email='luis.perdigao@rfi.ac.uk',
     packages=find_packages('src'),
     package_dir={'': 'src'},
     test_suite='tests',
@@ -32,6 +32,6 @@ setup(
         'pyyaml',
         'dask',
         'torch',
-        'scipy',
+        'scipy'
     ]
 )
