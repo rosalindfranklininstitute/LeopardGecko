@@ -1087,12 +1087,16 @@ class MultiClassMultiWayPredictOptimizer:
             #res = equalvol.mean()
 
         #Number of segmentations
-        nseg = np.max(vol0)
-        logging.info(f"Number of class segmentations in first volume {nseg+1}")
+        nseg0 = np.max(vol0)
+        nseg1 = np.max(vol1)
+        logging.info(f"Number of class segmentations in first volume {nseg0+1}")
+        logging.info(f"Number of class segmentations in second volume {nseg1+1}")
 
-        if nseg != np.max(vol1):
+        if nseg0 != nseg1:
             logging.warning ("Number of segmentations between volumes is different.")
         
+        nseg = max(nseg0, nseg1)
+
         isegstart=1
         if self.useBckgnd: isegstart=0
         
