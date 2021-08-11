@@ -1130,18 +1130,18 @@ class MultiClassMultiWayPredictOptimizer:
 
         classed_vol = self.identifiyClassFromVols(a_all)
         
+        score=None
+
         if metric == self.METRICDICE:
             logging.info(f"metric= Dice , useBckgnd = {self.useBckgnd}")
-            accvalue=self.MetricScoreOfVols_Dice(classed_vol,gt_rnd)
+            score=self.MetricScoreOfVols_Dice(classed_vol,gt_rnd)
         elif metric == self.METRICACCURACY:
             logging.info("metric= Accuracy")
-            accvalue = self.MetricScoreOfVols_Accuracy(classed_vol, gt_rnd)
+            score = self.MetricScoreOfVols_Accuracy(classed_vol, gt_rnd)
         
         #TODO: Consider adding other metrics
-        else:
-            accvalue=None
 
-        return accvalue , classed_vol
+        return score , classed_vol
 
 
     def getCombinations(self):
@@ -1232,17 +1232,17 @@ class MultiClassMultiWayPredictOptimizer:
         
         imax = np.argmax(metricvalues)
         
-        pvaluemax= pvalues0[imax]
+        p_maxscore= pvalues0[imax]
 
         #gets the volume that gives max metric
-        self.set_pcrit(pvaluemax)
-        metric_pmax, classedvol_pmax= self.getMetricScoreWithPcritFromClassVols(a_all0, gt_rnd0 , metric)
+        self.set_pcrit(p_maxscore)
+        max_metric_score, classedvol_pmax= self.getMetricScoreWithPcritFromClassVols(a_all0, gt_rnd0 , metric)
         
         if savemetricdatafile is not None:
             #savetext = savetext+ f"{pvalues0[i]} , {metricvalues[i]} \n"
-            saveline= f"pvalue for max metric= {metric_pmax} , with score = {classedvol_pmax}"
+            saveline= f"pvalue for max metric= {p_maxscore} , with score = {max_metric_score}"
 
             with open(savemetricdatafile, "a") as myfile:
                 myfile.write(saveline)
 
-        return pvaluemax, metric_pmax , classedvol_pmax
+        return p_maxscore, max_metric_score , classedvol_pmax
