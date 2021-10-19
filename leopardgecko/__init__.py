@@ -14,7 +14,7 @@
 #from .leopardgecko import *
 from .PredictedData import *
 from .ScoreData import *
-from .pcrit import *
+from .Pcrit import *
 
 #Make the AvgPool optional?
 from .AvgPool import *
