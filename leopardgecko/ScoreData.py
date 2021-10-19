@@ -5,7 +5,7 @@ from scipy import optimize
 
 class ScoreData:
     '''
-    Class to help analysing of score data.
+    Class to help analysing of score data, typically from Average pooling operations.
     It has also functions to determine and report regions of interest
     '''
 
@@ -107,83 +107,296 @@ class ScoreData:
         return self.histogram , self.histogram_bins
 
 
-    def SelectRegionsOfInterest_V0(self , showPlot=True , printReport = True, k_width=256 ):
-        if self.histogram is None:
-            _a, _b = self.getHistogram()
+    # def SelectRegionsOfInterest_V0(self , showPlot=True , printReport = True, k_width=256 ):
+    #     if self.histogram is None:
+    #         _a, _b = self.getHistogram()
         
-        hist_vmax = np.amax(self.histogram)
-        hist_x_vmax = self.histogram_bins [ np.where(self.histogram == hist_vmax)[0] ]
+    #     hist_vmax = np.amax(self.histogram)
+    #     hist_x_vmax = self.histogram_bins [ np.where(self.histogram == hist_vmax)[0] ]
         
-        hist_xmin = self.data3d_vmin
-        hist_xmax = self.data3d_vmax
+    #     hist_xmin = self.data3d_vmin
+    #     hist_xmax = self.data3d_vmax
 
-        #Choose regions based in the histogram shape
-        #Approximate peak with gaussian
-        def fgaussian(x, amplitude, mean, stddev):
-            return amplitude * np.exp( -0.5 * ((x - mean) / stddev)**2 )
+    #     #Choose regions based in the histogram shape
+    #     #Approximate peak with gaussian
+    #     def fgaussian(x, amplitude, mean, stddev):
+    #         return amplitude * np.exp( -0.5 * ((x - mean) / stddev)**2 )
 
-        aguess= np.max(self.histogram)
-        mguess = hist_x_vmax[0]
+    #     aguess= np.max(self.histogram)
+    #     mguess = hist_x_vmax[0]
 
-        pointsOfInterest=None
+    #     pointsOfInterest=None
         
-        try:
-            popt, pcov = optimize.curve_fit(fgaussian, self.histogram_bins , self.histogram, [aguess, mguess, 1.0])
-        except:
-            print("Error trying to fit gaussian to histogram.")
-        else:
-            print("Gaussian fit to peak, parameters amplitude={} , mean={} ,stdev={}".format(popt[0],popt[1],popt[2]))
+    #     try:
+    #         popt, pcov = optimize.curve_fit(fgaussian, self.histogram_bins , self.histogram, [aguess, mguess, 1.0])
+    #     except:
+    #         print("Error trying to fit gaussian to histogram.")
+    #     else:
+    #         print("Gaussian fit to peak, parameters amplitude={} , mean={} ,stdev={}".format(popt[0],popt[1],popt[2]))
 
-            hx = []
+    #         hx = []
 
-            hx.append ( (hist_xmax - hist_xmin)/4 + hist_xmin )
-            hx.append ( (hist_xmax + hist_xmin)/2.0 )
-            hx.append ( popt[1] - 3* popt[2] )  #At mean - 3*stdev (3 sigma)
-            hx.append ( popt[1] - popt[2]*2.35482 /2 ) # FHWM = 2.35482*stdev, At FWHM going up
-            hx.append ( popt[1] ) #Commonest consistency
+    #         hx.append ( (hist_xmax - hist_xmin)/4 + hist_xmin )
+    #         hx.append ( (hist_xmax + hist_xmin)/2.0 )
+    #         hx.append ( popt[1] - 3* popt[2] )  #At mean - 3*stdev (3 sigma)
+    #         hx.append ( popt[1] - popt[2]*2.35482 /2 ) # FHWM = 2.35482*stdev, At FWHM going up
+    #         hx.append ( popt[1] ) #Commonest consistency
 
-            def getClosestlVoxelFromListOfIndices(listindicesandscores, Zc,Yc,Xc):
-                #From the list of voxel indices, get the closest voxel to point (Xc, Yc, Zc)
-                #Also returns the distance and its score
+    #         def getClosestlVoxelFromListOfIndices(listindicesandscores, Zc,Yc,Xc):
+    #             #From the list of voxel indices, get the closest voxel to point (Xc, Yc, Zc)
+    #             #Also returns the distance and its score
 
-                listindices = listindicesandscores[0]
-                listcscores = listindicesandscores[1]
+    #             listindices = listindicesandscores[0]
+    #             listcscores = listindicesandscores[1]
                 
-                #First element sets the return result (default)
-                if len(listindices) >0:
-                    voxelresult = listindices[0]
-                    voxelresult_dist = (voxelresult[0]-Zc)**2 + (voxelresult[1]-Yc)**2 + (voxelresult[2] - Xc)**2
-                    voxel_cscore = listcscores[0]
+    #             #First element sets the return result (default)
+    #             if len(listindices) >0:
+    #                 voxelresult = listindices[0]
+    #                 voxelresult_dist = (voxelresult[0]-Zc)**2 + (voxelresult[1]-Yc)**2 + (voxelresult[2] - Xc)**2
+    #                 voxel_cscore = listcscores[0]
                     
-                    if len(listindices)>1:
-                        for j0 in range(1, len(listindices)):
-                            i0 =  listindices[j0]
-                            #print( "i0= " , i0)
-                            thisdist = math.sqrt( (i0[0]-Zc)**2 + (i0[1]-Yc)**2 + (i0[2] - Xc)**2 )
-                            if thisdist<voxelresult_dist:
-                                voxelresult = i0
-                                voxelresult_dist = thisdist
-                                voxel_cscore = listcscores[j0]
+    #                 if len(listindices)>1:
+    #                     for j0 in range(1, len(listindices)):
+    #                         i0 =  listindices[j0]
+    #                         #print( "i0= " , i0)
+    #                         thisdist = math.sqrt( (i0[0]-Zc)**2 + (i0[1]-Yc)**2 + (i0[2] - Xc)**2 )
+    #                         if thisdist<voxelresult_dist:
+    #                             voxelresult = i0
+    #                             voxelresult_dist = thisdist
+    #                             voxel_cscore = listcscores[j0]
                     
-                    #print ("Closest voxel is ", voxelresult , " with distance ", voxelresult_dist)
-                    return voxelresult, voxelresult_dist, voxel_cscore
+    #                 #print ("Closest voxel is ", voxelresult , " with distance ", voxelresult_dist)
+    #                 return voxelresult, voxelresult_dist, voxel_cscore
             
-            Zcenter = int( (np.amax( self.zVolCentres ) - np.amin( self.zVolCentres )) /2 )
-            Ycenter = int( (np.amax( self.yVolCentres ) - np.amin( self.yVolCentres )) /2 )
-            Xcenter = int( (np.amax( self.xVolCentres ) - np.amin( self.xVolCentres )) /2 )
+    #         Zcenter = int( (np.amax( self.zVolCentres ) - np.amin( self.zVolCentres )) /2 )
+    #         Ycenter = int( (np.amax( self.yVolCentres ) - np.amin( self.yVolCentres )) /2 )
+    #         Xcenter = int( (np.amax( self.xVolCentres ) - np.amin( self.xVolCentres )) /2 )
 
-            pointsOfInterest=[]
+    #         pointsOfInterest=[]
 
-            for hx0 in hx:
-                pointsOfInterest.append( \
-                    getClosestlVoxelFromListOfIndices ( \
-                    self.GetIndicesFromOrigDataWithScoreNear( hx0, popt[2] / 4 ), \
-                    Zcenter , Ycenter, Xcenter) )
+    #         for hx0 in hx:
+    #             pointsOfInterest.append( \
+    #                 getClosestlVoxelFromListOfIndices ( \
+    #                 self.GetIndicesFromOrigDataWithScoreNear( hx0, popt[2] / 4 ), \
+    #                 Zcenter , Ycenter, Xcenter) )
 
 
-        return pointsOfInterest
+    #     return pointsOfInterest
 
-    def SelectRegionsOfInterest_V1(self , showPlot=True , printReport = True, k_width=256 ):
+    # def SelectRegionsOfInterest_V1(self , showPlot=True , printReport = True, k_width=256 ):
+    #     if self.histogram is None:
+    #         _a, _b = self.getHistogram()
+        
+    #     hist_vmax = np.amax(self.histogram)
+    #     hist_x_vmax = self.histogram_bins [ np.where(self.histogram == hist_vmax)[0] ]
+        
+    #     hist_xmin = self.data3d_vmin
+    #     hist_xmax = self.data3d_vmax
+
+    #     #Choose regions based in the histogram shape
+    #     #Approximate peak with gaussian
+    #     def fgaussian(x, amplitude, mean, stddev):
+    #         return amplitude * np.exp( -0.5 * ((x - mean)**2 / stddev**2 ) )
+
+    #     aguess= np.max(self.histogram)
+    #     mguess = hist_x_vmax[0]
+
+
+    #     pointsOfInterest=None
+        
+    #     try:
+    #         popt, pcov = optimize.curve_fit(fgaussian, self.histogram_bins , self.histogram, [aguess, mguess, 1.0])
+    #     except:
+    #         print("Error trying to fit gaussian to histogram.")
+    #     else:
+
+    #         #If negative, make positive
+    #         stdev = abs(popt[2])
+
+    #         print("Gaussian fit to peak, parameters amplitude={} , mean={} ,stdev={}".format(popt[0],popt[1],stdev ))
+
+    #         hx = []
+
+    #         hx.append ( (hist_xmax - hist_xmin)/4 + hist_xmin )
+    #         hx.append ( (hist_xmax + hist_xmin)/2.0 )
+    #         hx.append ( popt[1] - 3* stdev )  #At mean - 3*stdev (3 sigma) #MB
+    #         hx.append ( popt[1] - (3* stdev + stdev*2.35482 /2)/2 ) #Olly
+    #         hx.append ( popt[1] - stdev*2.35482 /2 ) # FHWM = 2.35482*stdev, At FWHM going up #Neville
+    #         hx.append ( popt[1] - stdev*2.35482 /4 ) # MD
+    #         hx.append ( popt[1] ) #Commonest consistency
+
+    #         def getClosestlVoxelFromListOfIndices(listindicesandscores, Zc,Yc,Xc):
+    #             #From the list of voxel indices, get the closest voxel to point (Xc, Yc, Zc)
+    #             #Also returns the distance and its score
+
+    #             listindices = listindicesandscores[0]
+    #             listcscores = listindicesandscores[1]
+                
+    #             #First element sets the return result (default)
+    #             if len(listindices) >0:
+    #                 voxelresult = listindices[0]
+    #                 voxelresult_dist = (voxelresult[0]-Zc)**2 + (voxelresult[1]-Yc)**2 + (voxelresult[2] - Xc)**2
+    #                 voxel_cscore = listcscores[0]
+                    
+    #                 if len(listindices)>1:
+    #                     for j0 in range(1, len(listindices)):
+    #                         i0 =  listindices[j0]
+    #                         #print( "i0= " , i0)
+    #                         thisdist = math.sqrt( (i0[0]-Zc)**2 + (i0[1]-Yc)**2 + (i0[2] - Xc)**2 )
+    #                         if thisdist<voxelresult_dist:
+    #                             voxelresult = i0
+    #                             voxelresult_dist = thisdist
+    #                             voxel_cscore = listcscores[j0]
+                    
+    #                 #print ("Closest voxel is ", voxelresult , " with distance ", voxelresult_dist)
+    #                 return voxelresult, voxelresult_dist, voxel_cscore
+            
+    #         Zcenter = int( (np.amax( self.zVolCentres ) - np.amin( self.zVolCentres )) /2 )
+    #         Ycenter = int( (np.amax( self.yVolCentres ) - np.amin( self.yVolCentres )) /2 )
+    #         Xcenter = int( (np.amax( self.xVolCentres ) - np.amin( self.xVolCentres )) /2 )
+
+    #         pointsOfInterest=[]
+
+    #         for hx0 in hx:
+    #             pointsOfInterest.append( \
+    #                 getClosestlVoxelFromListOfIndices ( \
+    #                 self.GetIndicesFromOrigDataWithScoreNear( hx0, stdev / 4 ), \
+    #                 Zcenter , Ycenter, Xcenter) )
+
+    #     return pointsOfInterest
+
+
+    # def SelectRegionsOfInterest_V2(self ):
+    #     if self.histogram is None:
+    #         _a, _b = self.getHistogram()
+        
+    #     hist_vmax = np.amax(self.histogram)
+    #     hist_x_vmax = self.histogram_bins [ np.where(self.histogram == hist_vmax)[0] ]
+        
+    #     hist_xmin = self.data3d_vmin
+    #     hist_xmax = self.data3d_vmax
+
+    #     #Choose regions based in the histogram shape
+    #     #Approximate peak with gaussian
+    #     def fgaussian(x, amplitude, mean, stddev):
+    #         return amplitude * np.exp( -0.5 * ((x - mean)**2 / stddev**2 ) )
+
+    #     aguess= np.max(self.histogram)
+    #     mguess = hist_x_vmax[0]
+
+    #     pointsOfInterest=None
+
+    #     try:
+    #         popt, pcov = optimize.curve_fit(fgaussian, self.histogram_bins , self.histogram, [aguess, mguess, 1.0])
+    #     except:
+    #         print("Error trying to fit gaussian to histogram.")
+    #     else:
+    #         #If negative, make positive
+    #         stdev = abs(popt[2])
+
+    #         print("Gaussian fit to peak, parameters amplitude={} , mean={} ,stdev={}".format(popt[0],popt[1],stdev ))
+
+    #         hx = []
+
+    #         pos_meanminus3sigma = popt[1] - 3* stdev
+
+    #         hx.append ( (pos_meanminus3sigma-hist_xmin)/3 + hist_xmin )
+    #         #print("hx[0]= {}".format(hx[0]))
+
+    #         hx.append ( (pos_meanminus3sigma-hist_xmin)/3*2 + hist_xmin )
+    #         hx.append ( pos_meanminus3sigma )  #At mean - 3*stdev (3 sigma) #MB
+    #         hx.append ( popt[1] - (3* stdev + stdev*2.35482 /2)/2 ) #Olly
+    #         hx.append ( popt[1] - stdev*2.35482 /2 ) # FHWM = 2.35482*stdev, At FWHM going up #Neville
+    #         hx.append ( popt[1] - stdev*2.35482 /4 ) # MD
+    #         hx.append ( popt[1] ) #Commonest consistency
+
+    #         def getClosestlVoxelFromListOfIndices(listindicesandscores, Zc,Yc,Xc):
+    #             #From the list of voxel indices, get the closest voxel to point (Xc, Yc, Zc)
+    #             #Also returns the distance and its score
+
+    #             listindices = listindicesandscores[0]
+    #             listcscores = listindicesandscores[1]
+                
+                
+    #             if len(listindices) >0:
+    #                 #First element sets the return result (default)
+    #                 voxelresult = listindices[0]
+    #                 voxelresult_dist = (voxelresult[0]-Zc)**2 + (voxelresult[1]-Yc)**2 + (voxelresult[2] - Xc)**2
+    #                 voxel_cscore = listcscores[0]
+                    
+    #                 if len(listindices)>1:
+    #                     for j0 in range(1, len(listindices)):
+    #                         i0 =  listindices[j0]
+    #                         #print( "i0= " , i0)
+    #                         thisdist = math.sqrt( (i0[0]-Zc)**2 + (i0[1]-Yc)**2 + (i0[2] - Xc)**2 )
+    #                         if thisdist<voxelresult_dist:
+    #                             voxelresult = i0
+    #                             voxelresult_dist = thisdist
+    #                             voxel_cscore = listcscores[j0]
+                    
+    #                 #print ("Closest voxel is ", voxelresult , " with distance ", voxelresult_dist)
+    #                 return voxelresult, voxelresult_dist, voxel_cscore
+            
+    #         Zcenter = int( (np.amax( self.zVolCentres ) - np.amin( self.zVolCentres )) /2 )
+    #         Ycenter = int( (np.amax( self.yVolCentres ) - np.amin( self.yVolCentres )) /2 )
+    #         Xcenter = int( (np.amax( self.xVolCentres ) - np.amin( self.xVolCentres )) /2 )
+
+    #         pointsOfInterest=[]
+
+    #         for hx0 in hx:
+    #             scorewidth= stdev / 4
+    #             #If no indices are found then widens search. Tested, ok
+    #             while True:
+    #                 indices0 = self.GetIndicesFromOrigDataWithScoreNear( hx0, scorewidth )
+    #                 #print("len(indices0[0]) = {}".format(len(indices0[0])))
+    #                 #print(indices0)
+    #                 if len(indices0[0])==0:
+    #                     scorewidth += stdev / 4
+    #                 else:
+    #                     break
+
+
+
+    #             poi0 = getClosestlVoxelFromListOfIndices ( indices0, \
+    #                 Zcenter , Ycenter, Xcenter)
+
+    #             #print(poi0)
+    #             pointsOfInterest.append( poi0 )
+                    
+    #     return pointsOfInterest
+
+
+    def SelectRegionsOfInterest(self , *, printReport = True, k_width=256, version=2):
+        #From the separated versions of the same function put together in a single function
+        #Version to select region of interest based in the histogram is done by setting the version variable
+
+        def getClosestlVoxelFromListOfIndices(listindicesandscores, Zc,Yc,Xc):
+            #From the list of voxel indices, get the closest voxel to point (Xc, Yc, Zc)
+            #Also returns the distance and its score
+
+            listindices = listindicesandscores[0]
+            listcscores = listindicesandscores[1]
+            
+            
+            if len(listindices) >0:
+                #First element sets the return result (default)
+                voxelresult = listindices[0]
+                voxelresult_dist = (voxelresult[0]-Zc)**2 + (voxelresult[1]-Yc)**2 + (voxelresult[2] - Xc)**2
+                voxel_cscore = listcscores[0]
+                
+                if len(listindices)>1:
+                    for j0 in range(1, len(listindices)):
+                        i0 =  listindices[j0]
+                        #print( "i0= " , i0)
+                        thisdist = math.sqrt( (i0[0]-Zc)**2 + (i0[1]-Yc)**2 + (i0[2] - Xc)**2 )
+                        if thisdist<voxelresult_dist:
+                            voxelresult = i0
+                            voxelresult_dist = thisdist
+                            voxel_cscore = listcscores[j0]
+                
+                #print ("Closest voxel is ", voxelresult , " with distance ", voxelresult_dist)
+                return voxelresult, voxelresult_dist, voxel_cscore
+        
         if self.histogram is None:
             _a, _b = self.getHistogram()
         
@@ -201,141 +414,55 @@ class ScoreData:
         aguess= np.max(self.histogram)
         mguess = hist_x_vmax[0]
 
-
         pointsOfInterest=None
-        
+
         try:
             popt, pcov = optimize.curve_fit(fgaussian, self.histogram_bins , self.histogram, [aguess, mguess, 1.0])
         except:
             print("Error trying to fit gaussian to histogram.")
         else:
-
             #If negative, make positive
             stdev = abs(popt[2])
 
-            print("Gaussian fit to peak, parameters amplitude={} , mean={} ,stdev={}".format(popt[0],popt[1],stdev ))
+            mean_opt = popt[1]
+
+            print("Gaussian fit to peak, parameters amplitude={} , mean={} ,stdev={}".format(popt[0],mean_opt,stdev ))
 
             hx = []
 
-            hx.append ( (hist_xmax - hist_xmin)/4 + hist_xmin )
-            hx.append ( (hist_xmax + hist_xmin)/2.0 )
-            hx.append ( popt[1] - 3* stdev )  #At mean - 3*stdev (3 sigma) #MB
-            hx.append ( popt[1] - (3* stdev + stdev*2.35482 /2)/2 ) #Olly
-            hx.append ( popt[1] - stdev*2.35482 /2 ) # FHWM = 2.35482*stdev, At FWHM going up #Neville
-            hx.append ( popt[1] - stdev*2.35482 /4 ) # MD
-            hx.append ( popt[1] ) #Commonest consistency
+            if version==2:
 
-            def getClosestlVoxelFromListOfIndices(listindicesandscores, Zc,Yc,Xc):
-                #From the list of voxel indices, get the closest voxel to point (Xc, Yc, Zc)
-                #Also returns the distance and its score
+                pos_meanminus3sigma = mean_opt - 3* stdev
 
-                listindices = listindicesandscores[0]
-                listcscores = listindicesandscores[1]
-                
-                #First element sets the return result (default)
-                if len(listindices) >0:
-                    voxelresult = listindices[0]
-                    voxelresult_dist = (voxelresult[0]-Zc)**2 + (voxelresult[1]-Yc)**2 + (voxelresult[2] - Xc)**2
-                    voxel_cscore = listcscores[0]
-                    
-                    if len(listindices)>1:
-                        for j0 in range(1, len(listindices)):
-                            i0 =  listindices[j0]
-                            #print( "i0= " , i0)
-                            thisdist = math.sqrt( (i0[0]-Zc)**2 + (i0[1]-Yc)**2 + (i0[2] - Xc)**2 )
-                            if thisdist<voxelresult_dist:
-                                voxelresult = i0
-                                voxelresult_dist = thisdist
-                                voxel_cscore = listcscores[j0]
-                    
-                    #print ("Closest voxel is ", voxelresult , " with distance ", voxelresult_dist)
-                    return voxelresult, voxelresult_dist, voxel_cscore
+                hx.append ( (pos_meanminus3sigma-hist_xmin)/3 + hist_xmin )
+                #print("hx[0]= {}".format(hx[0]))
+
+                hx.append ( (pos_meanminus3sigma-hist_xmin)/3*2 + hist_xmin )
+                hx.append ( pos_meanminus3sigma )  #At mean - 3*stdev (3 sigma) #MB
+                hx.append ( mean_opt - (3* stdev + stdev*2.35482 /2)/2 ) #Olly
+                hx.append ( mean_opt - stdev*2.35482 /2 ) # FHWM = 2.35482*stdev, At FWHM going up #Neville
+                hx.append ( mean_opt - stdev*2.35482 /4 ) # MD
+                hx.append ( mean_opt ) #Commonest consistency
+
+            elif version==1:
+                hx.append ( (hist_xmax - hist_xmin)/4 + hist_xmin )
+                hx.append ( (hist_xmax + hist_xmin)/2.0 )
+                hx.append ( mean_opt - 3* stdev )  #At mean - 3*stdev (3 sigma) #MB
+                hx.append ( mean_opt - (3* stdev + stdev*2.35482 /2)/2 ) #Olly
+                hx.append ( mean_opt - stdev*2.35482 /2 ) # FHWM = 2.35482*stdev, At FWHM going up #Neville
+                hx.append ( mean_opt - stdev*2.35482 /4 ) # MD
+                hx.append ( mean_opt ) #Commonest consistency
+
+            elif version==0:
+                hx.append ( (hist_xmax - hist_xmin)/4 + hist_xmin )
+                hx.append ( (hist_xmax + hist_xmin)/2.0 )
+                hx.append ( mean_opt - 3* popt[2] )  #At mean - 3*stdev (3 sigma)
+                hx.append ( mean_opt - popt[2]*2.35482 /2 ) # FHWM = 2.35482*stdev, At FWHM going up
+                hx.append ( mean_opt ) #Commonest consistency
             
-            Zcenter = int( (np.amax( self.zVolCentres ) - np.amin( self.zVolCentres )) /2 )
-            Ycenter = int( (np.amax( self.yVolCentres ) - np.amin( self.yVolCentres )) /2 )
-            Xcenter = int( (np.amax( self.xVolCentres ) - np.amin( self.xVolCentres )) /2 )
-
-            pointsOfInterest=[]
-
-            for hx0 in hx:
-                pointsOfInterest.append( \
-                    getClosestlVoxelFromListOfIndices ( \
-                    self.GetIndicesFromOrigDataWithScoreNear( hx0, stdev / 4 ), \
-                    Zcenter , Ycenter, Xcenter) )
-
-        return pointsOfInterest
-
-
-    def SelectRegionsOfInterest_V2(self ):
-        if self.histogram is None:
-            _a, _b = self.getHistogram()
-        
-        hist_vmax = np.amax(self.histogram)
-        hist_x_vmax = self.histogram_bins [ np.where(self.histogram == hist_vmax)[0] ]
-        
-        hist_xmin = self.data3d_vmin
-        hist_xmax = self.data3d_vmax
-
-        #Choose regions based in the histogram shape
-        #Approximate peak with gaussian
-        def fgaussian(x, amplitude, mean, stddev):
-            return amplitude * np.exp( -0.5 * ((x - mean)**2 / stddev**2 ) )
-
-        aguess= np.max(self.histogram)
-        mguess = hist_x_vmax[0]
-
-        pointsOfInterest=None
-
-        try:
-            popt, pcov = optimize.curve_fit(fgaussian, self.histogram_bins , self.histogram, [aguess, mguess, 1.0])
-        except:
-            print("Error trying to fit gaussian to histogram.")
-        else:
-            #If negative, make positive
-            stdev = abs(popt[2])
-
-            print("Gaussian fit to peak, parameters amplitude={} , mean={} ,stdev={}".format(popt[0],popt[1],stdev ))
-
-            hx = []
-
-            pos_meanminus3sigma = popt[1] - 3* stdev
-
-            hx.append ( (pos_meanminus3sigma-hist_xmin)/3 + hist_xmin )
-            #print("hx[0]= {}".format(hx[0]))
-
-            hx.append ( (pos_meanminus3sigma-hist_xmin)/3*2 + hist_xmin )
-            hx.append ( pos_meanminus3sigma )  #At mean - 3*stdev (3 sigma) #MB
-            hx.append ( popt[1] - (3* stdev + stdev*2.35482 /2)/2 ) #Olly
-            hx.append ( popt[1] - stdev*2.35482 /2 ) # FHWM = 2.35482*stdev, At FWHM going up #Neville
-            hx.append ( popt[1] - stdev*2.35482 /4 ) # MD
-            hx.append ( popt[1] ) #Commonest consistency
-
-            def getClosestlVoxelFromListOfIndices(listindicesandscores, Zc,Yc,Xc):
-                #From the list of voxel indices, get the closest voxel to point (Xc, Yc, Zc)
-                #Also returns the distance and its score
-
-                listindices = listindicesandscores[0]
-                listcscores = listindicesandscores[1]
-                
-                
-                if len(listindices) >0:
-                    #First element sets the return result (default)
-                    voxelresult = listindices[0]
-                    voxelresult_dist = (voxelresult[0]-Zc)**2 + (voxelresult[1]-Yc)**2 + (voxelresult[2] - Xc)**2
-                    voxel_cscore = listcscores[0]
-                    
-                    if len(listindices)>1:
-                        for j0 in range(1, len(listindices)):
-                            i0 =  listindices[j0]
-                            #print( "i0= " , i0)
-                            thisdist = math.sqrt( (i0[0]-Zc)**2 + (i0[1]-Yc)**2 + (i0[2] - Xc)**2 )
-                            if thisdist<voxelresult_dist:
-                                voxelresult = i0
-                                voxelresult_dist = thisdist
-                                voxel_cscore = listcscores[j0]
-                    
-                    #print ("Closest voxel is ", voxelresult , " with distance ", voxelresult_dist)
-                    return voxelresult, voxelresult_dist, voxel_cscore
+            else:
+                print("No version selected. Exiting.")
+                return None
             
             Zcenter = int( (np.amax( self.zVolCentres ) - np.amin( self.zVolCentres )) /2 )
             Ycenter = int( (np.amax( self.yVolCentres ) - np.amin( self.yVolCentres )) /2 )
@@ -354,8 +481,6 @@ class ScoreData:
                         scorewidth += stdev / 4
                     else:
                         break
-
-
 
                 poi0 = getClosestlVoxelFromListOfIndices ( indices0, \
                     Zcenter , Ycenter, Xcenter)

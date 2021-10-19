@@ -16,9 +16,11 @@ except Exception as e:
     sys.exit()
 
 
-def AvgPool3D_LargeData(data3d, *,w_avg = 512, k_width=256 , s_stride=8 ):
-    #This function will do the avarage pooling in 3D using PyTorch AvgPool3D
-    #It splits data into chunks automatically
+def AvgPool3D_LargeData(data3d, *,blocksize = 512, k_width=256 , s_stride=8 ):
+    #This function will do the avarage pooling of a 3D data volume using PyTorch AvgPool3D
+    #with a windows with cubic size given by k_width (kekrnel width)
+    # and stride (step) of s_stride.
+    # To reduce GPU load, data is split into chunks of blocksize
     #and then combines the data automaticaly
     #It returns a ScoreData object
 
@@ -50,13 +52,13 @@ def AvgPool3D_LargeData(data3d, *,w_avg = 512, k_width=256 , s_stride=8 ):
         
         return result.cpu().detach().numpy()[0][0]
 
-    def Get3DAvgPoolOfChunkWithCornerAt( data3d, iz,iy,ix , w_avg , k_width, s_stride ):
+    def Get3DAvgPoolOfBlockWithCornerAt( data3d, iz,iy,ix , blocksize , k_width, s_stride ):
         '''
         Averages the 3D data3d (dask array), from corner (iz, iy, ix)
-        and with windows of w_avg in all directions.
+        and with blocks of bloscksize in all directions.
         So, it does AvgPool3D at region [ iz : iz+w_avg , iy : iy+w_avg , iy : iy+w_avg ]
         and with a kernel size of k_width x k_width x k_width , and stride (jump) of s_stride.
-        If the desired window exceeds the limits of the data3d , it will adjust the index limits in order to fit
+        If the desired block exceeds the limits of the data3d , it will adjust the index limits in order to fit
         Because it may change the index limits, the actual limits are also returned.
         datavol_avg
         '''
@@ -70,22 +72,22 @@ def AvgPool3D_LargeData(data3d, *,w_avg = 512, k_width=256 , s_stride=8 ):
         
         #Adjust limits
         iz_da_min = iz
-        iz_da_max = iz_da_min + w_avg
+        iz_da_max = iz_da_min + blocksize
         if iz_da_max > data3d.shape[0] :
             iz_da_max = data3d.shape[0]
-            iz_da_min = iz_da_max- w_avg
+            iz_da_min = iz_da_max- blocksize
         
         iy_da_min = iy
-        iy_da_max = iy_da_min + w_avg
+        iy_da_max = iy_da_min + blocksize
         if iy_da_max > data3d.shape[1] :
             iy_da_max = data3d.shape[1]
-            iy_da_min = iy_da_max- w_avg
+            iy_da_min = iy_da_max- blocksize
         
         ix_da_min = ix
-        ix_da_max = ix_da_min + w_avg
+        ix_da_max = ix_da_min + blocksize
         if ix_da_max > data3d.shape[2] :
             ix_da_max = data3d.shape[2]
-            ix_da_min = ix_da_max- w_avg
+            ix_da_min = ix_da_max- blocksize
         
         logging.info( "iz_da_min=" +str(iz_da_min) + ", iz_da_max=" + str(iz_da_max) +
             ", iy_da_min=" + str(iy_da_min) + ", iy_da_max=" + str(iy_da_max) +
@@ -114,7 +116,7 @@ def AvgPool3D_LargeData(data3d, *,w_avg = 512, k_width=256 , s_stride=8 ):
 
     res=None
 
-    assert (w_avg > k_width), "w_avg (window width average) should be higher than kwidth"
+    assert (blocksize > k_width), "w_avg (window width average) should be higher than kwidth"
     
     # if (do_weighting):
     #     setWeightedData('MaxMinSquare')
@@ -132,7 +134,7 @@ def AvgPool3D_LargeData(data3d, *,w_avg = 512, k_width=256 , s_stride=8 ):
         
         #Nested iterations of w_avg x w_avg x w_avg volumes
         #step0 = int( (w_avg - k_width) / s_stride )
-        step0 = int(w_avg - k_width)
+        step0 = int(blocksize - k_width)
         
         niter = 0 #Count the number of ierations
         time0 = time.perf_counter()
@@ -161,7 +163,7 @@ def AvgPool3D_LargeData(data3d, *,w_avg = 512, k_width=256 , s_stride=8 ):
                         " , ix_da=" + str(ix_da) + "/" + str(data3d.shape[2])
                         )
 
-                    datavol_avg , index_limits = Get3DAvgPoolOfChunkWithCornerAt(data3d, iz_da,iy_da,ix_da , w_avg , k_width, s_stride )
+                    datavol_avg , index_limits = Get3DAvgPoolOfBlockWithCornerAt(data3d, iz_da,iy_da,ix_da , blocksize , k_width, s_stride )
                     
                     #clear_output(wait=True)
                     
