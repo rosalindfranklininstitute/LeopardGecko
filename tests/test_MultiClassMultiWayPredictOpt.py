@@ -1,21 +1,9 @@
 #Not working well
 import numpy as np
 
-# import os
-# print(os.getcwd())
-
-#From some reason I can only run this test and this import when the test.py is in the root project folder
-#Relative import does not seem to work
-#import src.leopardgecko as lg
-#from .src import leopardgecko as lg
-#from ..src import leopardgecko as lg
-# import sys
-# sys.path.append('../../src')
-# import leopardgecko as lg
-
-import os.path
 import sys
-sys.path.insert(1, os.path.join(sys.path[0], '../src'))
+import os
+sys.path.insert(1, os.path.join(sys.path[0], '..'))
 import leopardgecko as lg
 
 boxwidth = 10
