@@ -4,7 +4,7 @@ import numpy as np
 
 import os.path
 import sys
-sys.path.insert(1, os.path.join(sys.path[0], '../src'))
+sys.path.insert(1, os.path.join(sys.path[0], '..'))
 import leopardgecko as lg
 
 #Show logging.info
@@ -57,13 +57,10 @@ pcrit0=(4,4,4)
 myCm.set_pcrit( pcrit0 )
 hvector0 = (8,2,2)
 print(f"With pcrit={pcrit0} and hvector = {hvector0}, classnumber = {myCm.getClassNumber(hvector0)} " )
-
 hvector0 = (2,8,2)
 print(f"With pcrit={pcrit0} and hvector = {hvector0}, classnumber = {myCm.getClassNumber(hvector0)} " )
-
 hvector0 = (2,2,8)
 print(f"With pcrit={pcrit0} and hvector = {hvector0}, classnumber = {myCm.getClassNumber(hvector0)} " )
-
 hvector0 = (12,0,0)
 print(f"With pcrit={pcrit0} and hvector = {hvector0}, classnumber = {myCm.getClassNumber(hvector0)} " )
 hvector0 = (0,12,0)
@@ -118,7 +115,7 @@ B[3:7, 2:6, 2:6] = vol1s[:,:,:]
 print(f"Dicescore = {myCm.MetricScoreOfVols_Dice(A,B)} (expected 0.5)")
 
 
-print("Test dice score calculation of 3-class segmented MetricScoreOfVols_Dice()")
+print("Test dice score calculation on a 3-class segmented MetricScoreOfVols_Dice()")
 vol0s = np.zeros((8,8,8), dtype=np.uint8)
 vol1s = np.ones((2,4,4), dtype=np.uint8)
 vol2s = np.ones((2,5,4),dtype=np.uint8) * 2
@@ -145,8 +142,8 @@ B[4:6 , 2:7 , 2:6] = vol2s
 print(f"Dicescore = {myCm.MetricScoreOfVols_Dice(A,B)} (expected 0.65)")
 
 
-print("Test identifiyClassFromVols()")
-
+#print("Test identifiyClassFromVols()")
+#TODO
 
 
 

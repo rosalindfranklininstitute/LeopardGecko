@@ -6,6 +6,10 @@ import os
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 import leopardgecko as lg
 
+#Show logging.info
+import logging
+logging.basicConfig(level=logging.INFO)
+
 boxwidth = 10
 nclasses = 3
 nways = 12

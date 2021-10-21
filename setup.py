@@ -14,15 +14,14 @@ setup(
     url = 'https://github.com/rosalindfranklininstitute/LeopardGecko',
     author = 'Luis Perdigao',
     author_email='luis.perdigao@rfi.ac.uk',
-    packages=find_packages('src'),
-    package_dir={'': 'src'},
+    packages=['leopardgecko'],
     test_suite='tests',
     classifiers=[
         'Development Status :: ok ',
         'License :: Not decided yet',
         'Natural Language :: English',
         'Programming Language :: Python :: 3.8',
-        'Operating System :: POSIX :: Linux',
+        'Operating System :: POSIX :: Linux :: Windows',
     ],
     license='Not sure',
     zip_safe=False,
@@ -31,7 +30,6 @@ setup(
         'h5py',
         'pyyaml',
         'dask',
-        'torch',
         'scipy'
     ]
 )

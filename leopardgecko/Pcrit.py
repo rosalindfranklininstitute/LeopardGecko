@@ -179,6 +179,13 @@ class MultiClassMultiWayPredictOptimizer:
 
     def getSegmentationProjMatrix(self, hvector ):
         '''
+        Returns the alpha matrix with the hvector projected to the 'sides' (svector) of the multidimensional triangle
+        
+        Return matrix (called alpha) has elements alpha[i,j],
+        corresponding to the projected hvector onto
+        the svector [ 0 , ..., +nways (j element) , 0 , -nways (i element),...]
+        This vector is basically one of the sides of the hypersurface triangle.
+
         The hvector is the hypervector. For example:
         In a 12way prediction with 3 semgmentations, each voxel will have several
         12 different predictions, with
@@ -194,10 +201,8 @@ class MultiClassMultiWayPredictOptimizer:
         The 2-dimensional matrix represents all the binary combinations,
         with the value being after projecting hvector
 
-        Return matrix (called alpha) has elements alpha[i,j],
-        corresponding to the projected hvector onto
-        the svector [ 0 , ..., +nways (j element) , 0 , -nways (i element),...]
-        This vector is basically one of the sides of the hypersurface triangle.
+        This function is mostly used internally to help calculation and optimization of pcrit.
+
         '''
 
         alpha = np.zeros((self.nclasses,self.nclasses))
