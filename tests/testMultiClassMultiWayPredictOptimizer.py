@@ -4,7 +4,7 @@ import numpy as np
 
 import os.path
 import sys
-sys.path.insert(1, os.path.join(sys.path[0], '..'))
+#sys.path.insert(1, os.path.join(sys.path[0], '..'))
 import leopardgecko as lg
 
 #Show logging.info
@@ -112,7 +112,7 @@ B[3:7, 2:6, 2:6] = vol1s[:,:,:]
 # overlap [3:5 , 2:6, 2:6], volume = 2*4*4 = 32
 #Dice score expected, 2*32 / (64+64) = 64/128  = 1/2 = 0.5
 
-print(f"Dicescore = {myCm.MetricScoreOfVols_Dice(A,B)} (expected 0.5)")
+print(f"Dicescore = {lg.MetricScoreOfVols_Dice(A,B)} (expected 0.5)")
 
 
 print("Test dice score calculation on a 3-class segmented MetricScoreOfVols_Dice()")
@@ -139,7 +139,7 @@ B[4:6 , 2:7 , 2:6] = vol2s
 #dice  = 2*32 / (40+40) = 64/80 = 8/10 = 0.8
 
 #Dice all = mean(0.5 , 0.8) = 0.65
-print(f"Dicescore = {myCm.MetricScoreOfVols_Dice(A,B)} (expected 0.65)")
+print(f"Dicescore = {lg.MetricScoreOfVols_Dice(A,B)} (expected 0.65)")
 
 
 #print("Test identifiyClassFromVols()")

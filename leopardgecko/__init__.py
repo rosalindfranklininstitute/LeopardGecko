@@ -15,6 +15,7 @@
 from .PredictedData import *
 from .ScoreData import *
 from .Pcrit import *
+from .metrics import *
 
 #Make the AvgPool optional?
 from .AvgPool import *

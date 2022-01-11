@@ -2,7 +2,7 @@ import numpy as np
 #import matplotlib.pyplot as plt #Needed here?
 import dask.array as da
 
-from metrics import *
+from .metrics import *
 
 import logging
 
@@ -173,7 +173,7 @@ class MultiClassMultiWayPredictOptimizer:
 
     def identifiyClassFromVols(self, vols):
         '''
-        Identifies the class for each voxel in the volumes.
+        Identifies the class for each voxel in the volumes using the pcrit established.
         Assumes that:
             vols first index corresponds to the segmentation class nway score
             Each voxel has numbers 0 to nways
@@ -343,3 +343,52 @@ class MultiClassMultiWayPredictOptimizer:
                 myfile.write(saveline)
 
         return p_maxscore, max_metric_score , classedvol_pmax
+
+
+
+    def getOptimizedHvectorsToClassForMaxDiceMetric(self, a_all0, gt_rnd0):
+        '''
+
+        Uses a different method to calculate the hvector_to_class by doing a per-hvector optimization
+        Each h-vector will be counted in the appearence in the data volumes.
+        This is counting will be separated by-per ground-truth class.
+
+        Parameters
+            a_all0: input arrays (4D) with first index corresponding to the class segment index and the remaining 3
+                indexes for the volume (int format)
+            gt_rnd0: single 3D volume with the ground truth. Voxels are int values that represent segmentation class
+            nways: number of ways that the prediction was made
+            nclasses: number of segmentation classes
+        '''
+
+        logging.info("getOptimizedHvectorsToClassForMaxDiceMetric()")
+
+        #Do for all integer combinations of pgrad
+        hvectors0= self.getCombinations()
+        logging.info(f"hvectors0 = {hvectors0}")
+
+        #Initialise the counter
+        hvect_gndclass_counter = {}
+        for h0 in hvectors0:
+            for c0 in range(self.nclasses):
+                hvect_gndclass_counter[ (h0,c0) ] = 0
+
+        vols_shape = a_all0.shape
+        #Count voxel-by-voxel
+        for iz in range(vols_shape[1]):
+            for iy in range(vols_shape[2]):
+                for ix in range(vols_shape[3]):
+                    v = a_all0[:, iz,iy,ix]
+                    h1 = tuple(v) #Convert to tuple to get the h-vector
+
+                    gnd0 = gt_rnd0[iz,iy,ix]
+
+                    #increment dict counter
+                    hvect_gndclass_counter[ (h1,gnd0) ] += 1
+
+        print("hvect_gndclass_counter")
+        print(hvect_gndclass_counter)
+        #TODO
+
+                    
+        return None
