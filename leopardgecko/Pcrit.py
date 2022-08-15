@@ -232,7 +232,7 @@ class MultiClassMultiWayPredictOptimizer:
 
         if metric == self.METRICDICE:
             logging.info(f"metric= Dice , useBckgnd = {self.useBckgnd}")
-            score = MetricScoreOfVols_Dice(classed_vol,gt_rnd)
+            score = MetricScoreOfVols_Dice(classed_vol, gt_rnd, self.useBckgnd)
         elif metric == self.METRICACCURACY:
             logging.info("metric= Accuracy")
             score = MetricScoreOfVols_Accuracy(classed_vol, gt_rnd)
@@ -343,7 +343,6 @@ class MultiClassMultiWayPredictOptimizer:
                 myfile.write(saveline)
 
         return p_maxscore, max_metric_score , classedvol_pmax
-
 
 
     def getOptimizedHvectorsToClassForMaxDiceMetric(self, a_all0, gt_rnd0):

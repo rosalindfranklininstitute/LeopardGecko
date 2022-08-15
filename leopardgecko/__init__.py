@@ -17,8 +17,12 @@ from .ScoreData import *
 from .Pcrit import *
 from .metrics import *
 
+
 #Make the AvgPool optional?
 from .AvgPool import *
+
+from . import hvectstatstools
+#To use the functions use import leopardgecko as lg ; lg.hvectstatstools.function()
 
 def lizzie():
     '''
