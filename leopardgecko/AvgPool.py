@@ -17,7 +17,7 @@ except Exception as e:
 
 def AvgPool3D_LargeData(data3d, *,blocksize = 512, k_width=256 , s_stride=8 ):
     #This function will do the avarage pooling of a 3D data volume using PyTorch AvgPool3D
-    #with a windows with cubic size given by k_width (kekrnel width)
+    #with a windows with cubic size given by k_width (kernel width)
     # and stride (step) of s_stride.
     # To reduce GPU load, data is split into chunks of blocksize
     #and then combines the data automaticaly

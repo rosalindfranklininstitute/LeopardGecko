@@ -72,6 +72,44 @@ def hvect_count_in_data(data_all, hvectors):
 
     return hvect_counter2, hvect_counter2_max
 
+def get_hvect_combinations(nclasses, nways):
+    '''
+    Gets all the possible hvectors
+    from nways and nclasses.
+    Returns a list with all the possible values in tuples
+    '''
+    def _getCombinations(inextdim,pbase):
+        #plist_ret = np.zeros(nclasses)
+        plist_ret = [] #python list (not numpy)
+        #print(f"inextdim = {inextdim}")
+        if inextdim==nclasses-1:
+            #Last index
+            #plist_ret.append( nways - pbase.sum())
+            pbase1= np.copy(pbase)
+            pbase1[inextdim] = nways - pbase.sum()
+            #plist_ret= [pbase1]
+            plist_ret= [tuple(pbase1)]
+            #print(f"Last index; plist_ret={plist_ret}")
+        else:
+            for i in range(0, int(nways-pbase.sum()+1) ):
+                #print(f"for inextdim = {inextdim} ; i={i} ")
+                pbase1= np.copy(pbase)
+                pbase1[inextdim] = i
+                inextdim0 = inextdim+1
+                plist = _getCombinations(inextdim0, pbase1)
+                #print(f"for inextdim = {inextdim} ; i={i} ; plist={plist}")
+
+                plist_ret.extend(plist)
+                #plist_ret.append(plist)
+
+        #print (f"plist_ret = {plist_ret}")
+        return plist_ret
+    
+    pbase0 = np.zeros(nclasses, dtype=int)
+    pcomb0= _getCombinations(0, pbase0)
+    
+    return pcomb0
+
 
 def testme():
     print("testme()")
