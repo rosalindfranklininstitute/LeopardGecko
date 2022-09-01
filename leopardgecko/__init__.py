@@ -12,17 +12,19 @@
 #from IPython.display import clear_output
 
 #from .leopardgecko import *
-from .PredictedData import *
-from .ScoreData import *
-from .Pcrit import *
-from .metrics import *
+# from .PredictedData import *
+# from .ScoreData import *
+# from .Pcrit import *
+# from .metrics import *
 
+# #Make the AvgPool optional?
+# from .AvgPool import *
 
-#Make the AvgPool optional?
-from .AvgPool import *
+#from . import hvectstatstools #OK
+# #To use the functions use import leopardgecko as lg ; lg.hvectstatstools.function()
 
-from . import hvectstatstools
-#To use the functions use import leopardgecko as lg ; lg.hvectstatstools.function()
+# from . import PredictedData
+from . import ScoreData, Pcrit, metrics, AvgPool, hvectstatstools
 
 def lizzie():
     '''
