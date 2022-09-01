@@ -36,7 +36,7 @@ def MetricScoreOfVols_Accuracy1(vol0, vol1, showinfosum=False):
 
     logging.info("equalvol calculated")
 
-    if loginfosum:
+    if showinfosum:
         sum0 = da.sum(equalvol)
         sum = sum0.compute()
         logging.info(f"For interest sum = {sum}, volsize = {equalvol.size}")

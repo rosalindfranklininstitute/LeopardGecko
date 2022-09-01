@@ -24,7 +24,9 @@
 # #To use the functions use import leopardgecko as lg ; lg.hvectstatstools.function()
 
 # from . import PredictedData
-from . import ScoreData, Pcrit, metrics, AvgPool, hvectstatstools
+from . import ScoreData, Pcrit, metrics, AvgPool
+from . import hvectstatstools
+from . import hvect_plot_2class, hvect_plot_3class
 
 def lizzie():
     '''
