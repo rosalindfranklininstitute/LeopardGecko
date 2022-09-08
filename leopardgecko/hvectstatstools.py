@@ -41,6 +41,50 @@ def hvect_gndclass_counter(data_all , data_class_gnd , hvectors):
     
     return hvect_gndclass_counter1
 
+# def gethvect_gndclass_counter_in_data_counted(data, data_gnd, hvectors):
+#     '''
+#     Does some counting statistics of hvector,gndclass.
+#     This is useful to analyse the quality of predictions from Unet, and may help with assignment of hvector-to-classlabel
+
+#     Parameters:
+#         data: volume where each voxeld has the counted number of volumes that gave non-background
+#         data_class_gnd: data volume with the ground truth class assignement for respective voxels
+#         hvectors: a list of tuples with all the possible hvectors
+#     Returns:
+#         hvect_gndclass_counter: dictionary with each entry being hvector: [c0,c1,c2]
+#             with c0 c1 and c2 being the counts for each class
+#     '''
+#     nclasses = len(hvectors[0])
+#     nways = np.sum(np.array(hvectors[0],dtype=np.uint8))
+#     #Initialise the counter
+#     hvect_gndclass_counter0 = {}
+#     for h0 in hvectors:
+#         d0= []
+#         for c0 in range(nclasses):
+#             d0.append(0)
+#         hvect_gndclass_counter0[ h0 ] = d0
+
+#     vols_shape = data.shape
+#     #Count voxel-by-voxel
+
+#     #This code is really slow
+#     #TODO: try to make it run faster
+#     for iz in range(vols_shape[0]):
+#         print(f"iz={iz} / {vols_shape[0]}")
+#         for iy in range(vols_shape[1]):
+#             for ix in range(vols_shape[2]):
+#                 v = data[iz,iy,ix]
+                
+#                 #Create the hvector from the count
+#                 h1 = (nways-v,v)
+
+#                 gnd0 = data_gnd[iz,iy,ix]
+
+#                 #increment dict counter
+#                 hvect_gndclass_counter0[ h1 ][gnd0] += 1
+
+#     return hvect_gndclass_counter0
+
 def gethvect_gndclass_counter_in_data_counted(data, data_gnd, hvectors):
     '''
     Does some counting statistics of hvector,gndclass.
@@ -53,9 +97,14 @@ def gethvect_gndclass_counter_in_data_counted(data, data_gnd, hvectors):
     Returns:
         hvect_gndclass_counter: dictionary with each entry being hvector: [c0,c1,c2]
             with c0 c1 and c2 being the counts for each class
+    
+    This version is much faster than the previous version
+    See: scripts/developing_hvectstatstools.ipynb
     '''
+
     nclasses = len(hvectors[0])
-    nways = np.sum(np.array(hvectors[0],dtype=np.uint8))
+    nways = int(np.sum(np.array(hvectors[0],dtype=np.uint8)))
+
     #Initialise the counter
     hvect_gndclass_counter0 = {}
     for h0 in hvectors:
@@ -64,24 +113,22 @@ def gethvect_gndclass_counter_in_data_counted(data, data_gnd, hvectors):
             d0.append(0)
         hvect_gndclass_counter0[ h0 ] = d0
 
-    vols_shape = data.shape
-    #Count voxel-by-voxel
-    for iz in range(vols_shape[0]):
-        print(f"iz={iz} / {vols_shape[0]}")
-        for iy in range(vols_shape[1]):
-            for ix in range(vols_shape[2]):
-                v = data[iz,iy,ix]
-                
-                #Create the hvector from the count
-                h1 = (nways-v,v)
+    data_gnd_binary = (data_gnd!=0)
 
-                gnd0 = data_gnd[iz,iy,ix]
+    #iterate calculation per vector basis
+    for i0 in range(nways+1):
+        hv0 = (i0, nways-i0)
 
-                #increment dict counter
-                hvect_gndclass_counter0[ h1 ][gnd0] += 1
+        #get matches
+        d_match = (data==nways-i0)
+        match_count = np.count_nonzero(d_match)
+
+        #Compare with gntruth
+        count_compare_to_gnd = np.count_nonzero(np.logical_and(d_match,data_gnd_binary))
+
+        hvect_gndclass_counter0[hv0] = [ match_count- count_compare_to_gnd, count_compare_to_gnd]
 
     return hvect_gndclass_counter0
-
 
 def hvect_count_in_data(data_all, hvectors):
     '''
