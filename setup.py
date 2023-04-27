@@ -30,6 +30,7 @@ setup(
         'h5py',
         'pyyaml',
         'dask',
-        'scipy'
+        'scipy',
+        'tqdm'
     ]
 )

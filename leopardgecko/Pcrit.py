@@ -135,6 +135,8 @@ class MultiClassMultiWayPredictOptimizer:
         Uses the dictionary if available
         If value not available then calculate new one
         
+        Note that if from some hvectors, the established N2C in from_hvect_to_segm_dict is -1,
+        then the result will give -1 as being unknown class
         '''
 
         nclass0=None
@@ -179,6 +181,8 @@ class MultiClassMultiWayPredictOptimizer:
             Each voxel has numbers 0 to nways
 
         '''
+
+        # TODO: Make sure something is done in case the N"C has -1 values
 
         logging.info("identifiyClassFromVols()")
 

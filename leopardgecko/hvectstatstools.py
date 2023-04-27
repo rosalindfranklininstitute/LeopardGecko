@@ -1,6 +1,7 @@
 import logging
 import numpy as np
 import dask.array as da
+import tqdm
 
 def hvect_gndclass_counter(data_all , data_class_gnd , hvectors):
     '''
@@ -365,3 +366,38 @@ def get_n2c_from_hvect_count_in_data_max(hvect_gndclass_count_in_data0_l):
             hvect_to_class_dict[hvect] = -1
 
     return hvect_to_class_dict
+
+def identifiy_class_in_dataall_using_n2c(data_all, n2c, show_progress_bar=False):
+    '''
+    Identifies the class for each voxel in the volumes using the N2C provided.
+    Assumes that:
+        data_all first index corresponds to the segmentation class nway score
+        Each voxel has numbers 0 to nways
+
+    '''
+
+    logging.info("identifiy_class_in_dataall_using_n2c()")
+
+    data_all_shape = data_all.shape
+    
+    if len(data_all_shape) != 4:
+        print("data_all is not 4-dimensional. exiting with None")
+        return None
+    
+    #Initialise values to -1 (=no class identified for each voxel)
+    classid_vol = np.full( (data_all.shape[1], data_all.shape[2], data_all.shape[3]) , -1 , dtype=np.int8)
+
+    for iz in tqdm.trange(data_all_shape[1], disable=not show_progress_bar):
+        for iy in range(data_all_shape[2]):
+            for ix in range(data_all_shape[3]):
+                v = data_all[:, iz,iy,ix]
+                h0=tuple(v)
+                cl0=-1 #default, couldn't identify
+                if h0 in n2c:
+                    cl0= n2c[h0]
+                classid_vol[iz,iy,ix] = cl0
+
+    #This could probably be vectorized but i tested it and
+    # found that non-vevctorized version is faster
+    
+    return classid_vol
