@@ -95,8 +95,8 @@ def MetricScoreOfVols_Dice(vol0, vol1, useBckgnd=False):
     
     if not usedask:
         for iseg in range(isegstart,nseg+1): #include last value , discards background (iseg=0)
-            p = da.where(vol0 == iseg, 1, 0)
-            t = da.where(vol1 == iseg, 1, 0)
+            p = np.where(vol0 == iseg, 1, 0)
+            t = np.where(vol1 == iseg, 1, 0)
             # c_inter = (p*t).astype(np.float32).sum()
             # c_union = (p+t).astype(np.float32).sum()
             c_inter = np.sum( (p*t) , dtype=np.float64 )
