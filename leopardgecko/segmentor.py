@@ -77,9 +77,13 @@ class cMultiAxisRotationsSegmentor():
         # and collects data files
         tempdir_pred= tempfile.TemporaryDirectory()
         tempdir_pred_path = Path(tempdir_pred.name)
+        print(f"tempdir_pred_path:{tempdir_pred_path}")
+
         #Predict multi-axis multi-rotations
         #Predictions are stored in h5 files in temprary folder
-        pred_data_filenames=self.NN1_predict(self,traindata, tempdir_pred_path)
+        pred_data_filenames=self.NN1_predict(traindata, tempdir_pred_path)
+        print("pred_data_filenames")
+        print(pred_data_filenames)
 
         #Need to train next model by running predictions and optimize MLP
 
@@ -99,6 +103,8 @@ class cMultiAxisRotationsSegmentor():
         #Train NN2 from multi-axis multi-angle predictions against labels (gnd truth)
         self.NN2_train(data_all, trainlabels, get_metrics=get_metrics)
 
+        tempdir_pred.cleanup()
+
         return
 
     def NN2_train(self, train_data_all_probs, trainlabels, get_metrics=True):
@@ -113,12 +119,12 @@ class cMultiAxisRotationsSegmentor():
         random.shuffle(all_origs_list)
         ntrain = min(len(all_origs_list), 4096)
 
-        X_train=[] # as list of volume data, flattened for each block
+        X_train=[] # as list of volume data, flattened for each voxel
         
         for i in tqdm.trange(ntrain):
             el = all_origs_list[i]
             z,y,x = el
-            data_vol = train_data_all_probs[:,z,y,x]
+            data_vol = train_data_all_probs[:,z,y,x,:]
             data_vol_flat = data_vol.flatten()
             X_train.append(data_vol_flat)
 
@@ -126,9 +132,10 @@ class cMultiAxisRotationsSegmentor():
         for i in tqdm.trange(ntrain):
             el = all_origs_list[i]
             z,y,x = el
-            label_vol_label = train_data_all_probs[z,y,x]
+            label_vol_label = trainlabels[z,y,x]
             y_train.append(label_vol_label)
 
+        #Setup classifier
         self.NN2 = MLPClassifier(hidden_layer_sizes=(10,10), random_state=1, activation='tanh', verbose=True, learning_rate_init=0.001,solver='sgd', max_iter=1000)
 
         #Do the training here
@@ -169,10 +176,11 @@ class cMultiAxisRotationsSegmentor():
     def NN1_train(self, traindata, trainlabels):
         tempdir_data = tempfile.TemporaryDirectory()
         tempdir_data_path=Path(tempdir_data.name)
+        print(f"tempdir_data_path:{tempdir_data_path}")
 
         tempdir_seg = tempfile.TemporaryDirectory()
         tempdir_seg_path = Path(tempdir_seg.name)
-
+        print(f"tempdir_seg_path:{tempdir_seg_path}")
 
         settings0 = {'data_im_dirname': 'data',
             'seg_im_out_dirname': 'seg',
