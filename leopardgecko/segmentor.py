@@ -91,6 +91,16 @@ class cMultiAxisRotationsSegmentor():
 
         #Build data object containing all predictions
         data0 = read_h5_to_np(pred_data_filenames[0])
+
+        #Take this oportunity to calculate metrics of each prediction
+        nn1_acc_dice_s= []
+
+        if get_metrics:
+            nn1_acc_dice_s.append( [
+                metrics.MetricScoreOfVols_Accuracy(data0,trainlabels) ,
+                metrics.MetricScoreOfVols_Dice(data_i,trainlabels)
+            ])
+
         all_shape = ( len(pred_data_filenames), *data0.shape )
         data_all = np.zeros( all_shape)
         #Fill with data
@@ -100,12 +110,24 @@ class cMultiAxisRotationsSegmentor():
             data_i = read_h5_to_np(pred_data_filenames[i])
             data_all[i,:,:,:]=data_i
 
+            if get_metrics:
+                nn1_acc_dice_s.append( [
+                    metrics.MetricScoreOfVols_Accuracy(data0,trainlabels) ,
+                    metrics.MetricScoreOfVols_Dice(data_i,trainlabels)
+                ])
+
+        if get_metrics:
+            for i, m0 in enumerate(nn1_acc_dice_s):
+                a0,d0 = m0
+                print(f"prediction:{i} , accuracy:{a0}, dice:{d0}")
+                
+        
         #Train NN2 from multi-axis multi-angle predictions against labels (gnd truth)
-        self.NN2_train(data_all, trainlabels, get_metrics=get_metrics)
+        nn2_acc, nn2_dice = self.NN2_train(data_all, trainlabels, get_metrics=get_metrics)
 
         tempdir_pred.cleanup()
 
-        return
+        return nn1_acc_dice_s, (nn2_acc, nn2_dice)
 
     def NN2_train(self, train_data_all_probs, trainlabels, get_metrics=True):
                 
@@ -149,10 +171,14 @@ class cMultiAxisRotationsSegmentor():
             d_prediction= self.NN2_predict( train_data_all_probs)
 
             #Get metrics
-            acc= metrics.MetricScoreOfVols_Accuracy(trainlabels,d_prediction)
-            dice= metrics.MetricScoreOfVols_Dice(trainlabels,d_prediction, useBckgnd=False)
+            nn2_acc= metrics.MetricScoreOfVols_Accuracy(trainlabels,d_prediction)
+            nn2_dice= metrics.MetricScoreOfVols_Dice(trainlabels,d_prediction, useBckgnd=False)
 
-            print(f"acc:{acc}, dice:{dice}")
+            print(f"NN2 acc:{nn2_acc}, dice:{nn2_dice}")
+        
+            return nn2_acc, nn2_dice
+        
+        return None, None
 
 
     def NN2_predict(self, data_all_probs):
