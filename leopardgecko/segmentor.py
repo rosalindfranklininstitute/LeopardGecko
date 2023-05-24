@@ -1,5 +1,3 @@
-#TODO: Test this code
-
 import numpy as np
 import matplotlib.pyplot as plt
 import dask.array as da
@@ -12,8 +10,6 @@ def numpy_from_hdf5(path):
     with h5py.File(path, 'r') as f:
         data = f['/data'][()]
     return np.array(data)
-
-import logging
 
 from pathlib import Path
 
@@ -66,9 +62,9 @@ class cMultiAxisRotationsSegmentor():
         Train NN1 (volume segmantics) and NN2 (MLP Classifier)
         """
 
-        logging.basicConfig(
-            level=logging.INFO, format=cfg.LOGGING_FMT, datefmt=cfg.LOGGING_DATE_FMT
-        )
+        # logging.basicConfig(
+        #     level=logging.INFO, format=cfg.LOGGING_FMT, datefmt=cfg.LOGGING_DATE_FMT
+        # )
         
         #Train NN1
         self.NN1_train(traindata, trainlabels)
@@ -81,47 +77,41 @@ class cMultiAxisRotationsSegmentor():
 
         #Predict multi-axis multi-rotations
         #Predictions are stored in h5 files in temprary folder
-        pred_data_filenames=self.NN1_predict(traindata, tempdir_pred_path)
-        print("pred_data_filenames")
-        print(pred_data_filenames)
+        pred_data_probs_filenames, pred_data_labels_filenames=self.NN1_predict(traindata, tempdir_pred_path)
+        print("pred_data_probs_filenames")
+        print(pred_data_probs_filenames)
+        print("pred_data_labels_filenames")
+        print(pred_data_labels_filenames)
 
         #Need to train next model by running predictions and optimize MLP
 
         #Use multi-predicted data and labels to train NN2
 
         #Build data object containing all predictions
-        data0 = read_h5_to_np(pred_data_filenames[0])
+        data0 = read_h5_to_np(pred_data_probs_filenames[0])
 
         #Take this oportunity to calculate metrics of each prediction
-        nn1_acc_dice_s= []
-
-        if get_metrics:
-            nn1_acc_dice_s.append( [
-                metrics.MetricScoreOfVols_Accuracy(data0,trainlabels) ,
-                metrics.MetricScoreOfVols_Dice(data_i,trainlabels)
-            ])
-
-        all_shape = ( len(pred_data_filenames), *data0.shape )
+        
+        all_shape = ( len(pred_data_probs_filenames), *data0.shape )
         data_all = np.zeros( all_shape)
         #Fill with data
         data_all[0,:,:,:]= data0
-        for i in range(1,len(pred_data_filenames)):
+        for i in range(1,len(pred_data_probs_filenames)):
             print(i)
-            data_i = read_h5_to_np(pred_data_filenames[i])
+            data_i = read_h5_to_np(pred_data_probs_filenames[i])
             data_all[i,:,:,:]=data_i
 
-            if get_metrics:
-                nn1_acc_dice_s.append( [
-                    metrics.MetricScoreOfVols_Accuracy(data0,trainlabels) ,
-                    metrics.MetricScoreOfVols_Dice(data_i,trainlabels)
-                ])
 
+        nn1_acc_dice_s= []
         if get_metrics:
-            for i, m0 in enumerate(nn1_acc_dice_s):
-                a0,d0 = m0
-                print(f"prediction:{i} , accuracy:{a0}, dice:{d0}")
-                
-        
+            for i, label_fn0 in enumerate(pred_data_labels_filenames):
+                data_i = read_h5_to_np(label_fn0)
+                a0 =  metrics.MetricScoreOfVols_Accuracy(data_i,trainlabels)
+                d0 = metrics.MetricScoreOfVols_Dice(data_i,trainlabels)
+                nn1_acc_dice_s.append( [a0,d0])
+                print(f"prediction:{i} , filename: {label_fn0}, accuracy:{a0}, dice:{d0}")
+
+
         #Train NN2 from multi-axis multi-angle predictions against labels (gnd truth)
         nn2_acc, nn2_dice = self.NN2_train(data_all, trainlabels, get_metrics=get_metrics)
 
@@ -285,7 +275,7 @@ class cMultiAxisRotationsSegmentor():
         """
         
         Does the multi-axis multi-rotation predictions
-        and returns predictions filenames
+        and returns predictions filenames of probablilities and labels
 
         predictions are probabilities (not labels)
 
@@ -301,6 +291,8 @@ class cMultiAxisRotationsSegmentor():
             'one_hot': False,
             'prediction_axis': 'Z'}
 
+        # TODO: Save also labels?
+
         settings = SimpleNamespace(**settings1)
 
         self.volseg2pred = VolSeg2dPredictor(self.model_NN1_path, settings, use_dask=True)
@@ -313,7 +305,8 @@ class cMultiAxisRotationsSegmentor():
         
         data_vol = np.array(traindata) #Copies
 
-        pred_data_filenames=[] #Will store results in files, and keep the filenames as reference
+        pred_data_probs_filenames=[] #Will store results in files, and keep the filenames as reference
+        pred_data_labels_filenames=[]
         for krot in range(0, 4):
             rot_angle_degrees = krot * 90
             logging.info(f"Volume rotated by {rot_angle_degrees} degrees")
@@ -327,31 +320,42 @@ class cMultiAxisRotationsSegmentor():
             res = self.volseg2pred._predict_single_axis_all_probs(
                 data_vol, axis=Axis.Z
             )
-            pred = np.rot90(res[1], -krot) #invert rotation before saving
+            pred_probs = np.rot90(res[1], -krot) #invert rotation before saving
             #Saves prediction labels
-            fn = save_pred_data(pred, "YX", rot_angle_degrees)
-            pred_data_filenames.append(fn)
+            fn = save_pred_data(pred_probs, "YX", rot_angle_degrees)
+            pred_data_probs_filenames.append(fn)
 
+            pred_labels = np.rot90(res[0], -krot)
+            fn = save_pred_data(pred_labels, "YX_labels", rot_angle_degrees)
+            pred_data_labels_filenames.append(fn)
+            
             #ZX
             logging.info("Predicting ZX slices:")
             res = self.volseg2pred._predict_single_axis_all_probs(
                 data_vol, axis=Axis.Y
             )
-            pred = np.rot90(res[1], -krot) #invert rotation before saving
-            fn = save_pred_data(pred, "ZX", rot_angle_degrees)
-            pred_data_filenames.append(fn)
+            pred_probs = np.rot90(res[1], -krot) #invert rotation before saving
+            fn = save_pred_data(pred_probs, "ZX", rot_angle_degrees)
+            pred_data_probs_filenames.append(fn)
+
+            pred_labels = np.rot90(res[0], -krot)
+            fn = save_pred_data(pred_labels, "ZX_labels", rot_angle_degrees)
+            pred_data_labels_filenames.append(fn)
 
             #ZY
             logging.info("Predicting ZY slices:")
             res= self.volseg2pred._predict_single_axis_all_probs(
                 data_vol, axis=Axis.X
             )
-            pred = np.rot90(res[1], -krot) #invert rotation before saving
-            fn = save_pred_data(pred, "ZY", rot_angle_degrees)
-            pred_data_filenames.append(fn)
+            pred_probs = np.rot90(res[1], -krot) #invert rotation before saving
+            fn = save_pred_data(pred_probs, "ZY", rot_angle_degrees)
+            pred_data_probs_filenames.append(fn)
+
+            pred_labels = np.rot90(res[0], -krot)
+            fn = save_pred_data(pred_labels, "ZY_labels", rot_angle_degrees)
+            pred_data_labels_filenames.append(fn)
 
         del(data_vol)
 
-        return pred_data_filenames
-
+        return pred_data_probs_filenames, pred_data_labels_filenames
 

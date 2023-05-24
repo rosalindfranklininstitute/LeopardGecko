@@ -18,9 +18,11 @@ def MetricScoreOfVols_Accuracy(vol0, vol1, loginfosum=False):
         sum = da.sum(equalvol, dtype=np.float64).compute() #compute it float64 accumulator
         logging.info(f"For interest sum = {sum}, volsize = {equalvol.size}")
 
-    res = da.mean(equalvol, dtype=np.float64).compute() #Compute mean suing float64 accumulator precision
+    res = da.mean(equalvol, dtype=np.float64) #Compute mean suing float64 accumulator precision
 
-    return res
+    res_np=res.compute()
+
+    return res_np
 
 
 def MetricScoreOfVols_Accuracy1(vol0, vol1, showinfosum=False):
