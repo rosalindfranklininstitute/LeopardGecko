@@ -56,6 +56,51 @@ class cMultiAxisRotationsSegmentor():
         
         self.model_NN1_path = Path(cwd,model_NN1_fn)
         self.model_NN2_path = Path(cwd, model_NN2_fn)
+
+    def _init_settings(self):
+        settings0 = {'data_im_dirname': 'data',
+            'seg_im_out_dirname': 'seg',
+            'model_output_fn': 'trained_2d_model',
+            'clip_data': False,
+            'st_dev_factor': 2.575,
+            'data_hdf5_path': '/data',
+            'seg_hdf5_path': '/data',
+            'training_axes': 'All',
+            'image_size': 256,
+            'downsample': False,
+            'training_set_proportion': 0.8,
+            'cuda_device': 0,
+            'num_cyc_frozen': 8,
+            'num_cyc_unfrozen': 5,
+            'patience': 3,
+            'loss_criterion': 'DiceLoss',
+            'alpha': 0.75,
+            'beta': 0.25,
+            'eval_metric': 'MeanIoU',
+            'pct_lr_inc': 0.3,
+            'starting_lr': '1e-6',
+            'end_lr': 50,
+            'lr_find_epochs': 1,
+            'lr_reduce_factor': 500,
+            'plot_lr_graph': False,
+            'model': {'type': 'U_Net',
+            'encoder_name': 'resnet34',
+            'encoder_weights': 'imagenet'}}
+
+        self.NN1_train_settings = SimpleNamespace(**settings0)
+
+        settings1 = {'quality': 'high',
+            'output_probs': True,
+            'clip_data': True,
+            'st_dev_factor': 2.575,
+            'data_hdf5_path': '/data',
+            'cuda_device': 0,
+            'downsample': False,
+            'one_hot': False,
+            'prediction_axis': 'Z'}
+
+        self.NN1_pred_settings = SimpleNamespace(**settings1)
+
     
     def train(self, traindata, trainlabels, get_metrics=True):
         """
@@ -118,6 +163,49 @@ class cMultiAxisRotationsSegmentor():
         tempdir_pred.cleanup()
 
         return nn1_acc_dice_s, (nn2_acc, nn2_dice)
+    
+    def predict(self, data_in):
+        """
+        Creates predicted labels from a whole data volume
+        using the double NN1+NN2 pipeline
+        """
+        #TODO: Test
+        #Predict from provided volumetric data using the trained model defined here
+
+        #Check if the following objects are avaialble
+        #self.volseg2pred #NN1 predictor (attention the NN1_predict() loads the model from file!!)
+        
+        if not self.model_NN1_path is None and not self.NN2 is None:
+            print("NN1 prediction")
+            tempdir_pred= tempfile.TemporaryDirectory()
+            tempdir_pred_path = Path(tempdir_pred.name)
+            print(f"Created temporary folder {tempdir_pred_path}")
+            pred_data_probs_filenames, _ = self.NN1_predict(data_in, tempdir_pred_path) #Get prediction probs, not labels
+            print("NN1 prediction, complete.")
+
+            #Build data object containing all predictions
+            print("Building large object containing all predictions.")
+            data0 = read_h5_to_np(pred_data_probs_filenames[0]) 
+            all_shape = ( len(pred_data_probs_filenames), *data0.shape )
+            data_all = np.zeros( all_shape)
+            #Fill with data
+            data_all[0,:,:,:]= data0
+            for i in range(1,len(pred_data_probs_filenames)):
+                print(i)
+                data_i = read_h5_to_np(pred_data_probs_filenames[i])
+                data_all[i,:,:,:]=data_i
+
+            print("NN2 prediction")
+            d_prediction= self.NN2_predict( data_all)
+            
+            print("NN2 prediction complete.")
+            print(f"Cleaning up tempdir_pred: {tempdir_pred_path}")
+            tempdir_pred.cleanup()
+
+            return d_prediction
+
+        return None
+
 
     def NN2_train(self, train_data_all_probs, trainlabels, get_metrics=True):
                 
@@ -198,43 +286,14 @@ class cMultiAxisRotationsSegmentor():
         tempdir_seg_path = Path(tempdir_seg.name)
         print(f"tempdir_seg_path:{tempdir_seg_path}")
 
-        settings0 = {'data_im_dirname': 'data',
-            'seg_im_out_dirname': 'seg',
-            'model_output_fn': 'trained_2d_model',
-            'clip_data': False,
-            'st_dev_factor': 2.575,
-            'data_hdf5_path': '/data',
-            'seg_hdf5_path': '/data',
-            'training_axes': 'All',
-            'image_size': 256,
-            'downsample': False,
-            'training_set_proportion': 0.8,
-            'cuda_device': 0,
-            'num_cyc_frozen': 8,
-            'num_cyc_unfrozen': 5,
-            'patience': 3,
-            'loss_criterion': 'DiceLoss',
-            'alpha': 0.75,
-            'beta': 0.25,
-            'eval_metric': 'MeanIoU',
-            'pct_lr_inc': 0.3,
-            'starting_lr': '1e-6',
-            'end_lr': 50,
-            'lr_find_epochs': 1,
-            'lr_reduce_factor': 500,
-            'plot_lr_graph': False,
-            'model': {'type': 'U_Net',
-            'encoder_name': 'resnet34',
-            'encoder_weights': 'imagenet'}}
 
-        settings = SimpleNamespace(**settings0)
 
         # Keep track of the number of labels
         max_label_no = 0
         label_codes = None
 
         # Set up the DataSlicer and slice the data volumes into image files
-        slicer = TrainingDataSlicer(traindata, trainlabels, settings)
+        slicer = TrainingDataSlicer(traindata, trainlabels, self.NN1_train_settings)
         data_prefix, label_prefix = "",""
         slicer.output_data_slices(tempdir_data_path, data_prefix)
         slicer.output_label_slices(tempdir_seg_path, label_prefix)
@@ -243,23 +302,23 @@ class cMultiAxisRotationsSegmentor():
             label_codes = slicer.codes
 
         # Set up the 2dTrainer
-        self.trainer = VolSeg2dTrainer(tempdir_data_path, tempdir_seg_path, max_label_no, settings)
+        self.trainer = VolSeg2dTrainer(tempdir_data_path, tempdir_seg_path, max_label_no, self.NN1_train_settings)
         # Train the model, first frozen, then unfrozen
-        num_cyc_frozen = settings.num_cyc_frozen
-        num_cyc_unfrozen = settings.num_cyc_unfrozen
+        num_cyc_frozen = self.NN1_train_settings.num_cyc_frozen
+        num_cyc_unfrozen = self.NN1_train_settings.num_cyc_unfrozen
         #model_type = settings.model["type"].name
 
         if num_cyc_frozen > 0:
             self.trainer.train_model(
-                self.model_NN1_path, num_cyc_frozen, settings.patience, create=True, frozen=True
+                self.model_NN1_path, num_cyc_frozen, self.NN1_train_settings.patience, create=True, frozen=True
             )
         if num_cyc_unfrozen > 0 and num_cyc_frozen > 0:
             self.trainer.train_model(
-                self.model_NN1_path, num_cyc_unfrozen, settings.patience, create=False, frozen=False
+                self.model_NN1_path, num_cyc_unfrozen, self.NN1_train_settings.patience, create=False, frozen=False
             )
         elif num_cyc_unfrozen > 0 and num_cyc_frozen == 0:
             self.trainer.train_model(
-                self.model_NN1_path, num_cyc_unfrozen, settings.patience, create=True, frozen=False
+                self.model_NN1_path, num_cyc_unfrozen, self.NN1_train_settings.patience, create=True, frozen=False
             )
         #trainer.output_loss_fig(model_out)
         #trainer.output_prediction_figure(model_out)
@@ -271,7 +330,7 @@ class cMultiAxisRotationsSegmentor():
         tempdir_seg.cleanup()
 
 
-    def NN1_predict(self,traindata, pred_folder_out):
+    def NN1_predict(self,data_to_predict, pred_folder_out):
         """
         
         Does the multi-axis multi-rotation predictions
@@ -279,23 +338,13 @@ class cMultiAxisRotationsSegmentor():
 
         predictions are probabilities (not labels)
 
+        Returns: a tuple with
+        pred_data_probs_filenames
+        pred_data_labels_filenames
+
         """
 
-        settings1 = {'quality': 'high',
-            'output_probs': True,
-            'clip_data': True,
-            'st_dev_factor': 2.575,
-            'data_hdf5_path': '/data',
-            'cuda_device': 0,
-            'downsample': False,
-            'one_hot': False,
-            'prediction_axis': 'Z'}
-
-        # TODO: Save also labels?
-
-        settings = SimpleNamespace(**settings1)
-
-        self.volseg2pred = VolSeg2dPredictor(self.model_NN1_path, settings, use_dask=True)
+        self.volseg2pred = VolSeg2dPredictor(self.model_NN1_path, self.NN1_pred_settings, use_dask=True)
 
         def save_pred_data(data, axis, rot):
             # Saves predicted data to h5 file in tempdir and return file path in case it is needed
@@ -303,7 +352,7 @@ class cMultiAxisRotationsSegmentor():
             save_data_to_hdf5(data, file_path)
             return file_path
         
-        data_vol = np.array(traindata) #Copies
+        data_vol = np.array(data_to_predict) #Copies
 
         pred_data_probs_filenames=[] #Will store results in files, and keep the filenames as reference
         pred_data_labels_filenames=[]
@@ -311,7 +360,7 @@ class cMultiAxisRotationsSegmentor():
             rot_angle_degrees = krot * 90
             logging.info(f"Volume rotated by {rot_angle_degrees} degrees")
 
-            data_vol = np.rot90(np.array(traindata),krot) #Copies
+            data_vol = np.rot90(np.array(data_to_predict),krot) #Copies
 
             #Predict 3 axis
             #YX
