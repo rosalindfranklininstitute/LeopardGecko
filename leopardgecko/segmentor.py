@@ -5,12 +5,6 @@ import dask.array as da
 #import subprocess
 import tempfile
 
-import h5py
-def numpy_from_hdf5(path):
-    with h5py.File(path, 'r') as f:
-        data = f['/data'][()]
-    return np.array(data)
-
 from pathlib import Path
 
 import os
@@ -35,18 +29,7 @@ import tqdm #progress bar in iterations
 from sklearn.neural_network import MLPClassifier #NN2
 
 from . import metrics
-
-def save_data_to_hdf5(data, file_path, internal_path="/data", chunking=True):
-    logging.info(f"Saving data of shape {data.shape} to {file_path}.")
-    with h5py.File(file_path, "w") as f:
-        f.create_dataset(
-            "/data", data=data, chunks=chunking, compression=cfg.HDF5_COMPRESSION
-        )
-def read_h5_to_np(file_path):
-    with h5py.File(file_path,'r') as data_file:
-        data_hdf5=np.array(data_file['data'])
-        
-    return data_hdf5
+from .utils import *
 
 class cMultiAxisRotationsSegmentor():
 
@@ -57,7 +40,10 @@ class cMultiAxisRotationsSegmentor():
         self.model_NN1_path = Path(cwd,model_NN1_fn)
         self.model_NN2_path = Path(cwd, model_NN2_fn)
 
+        self._init_settings()
+
     def _init_settings(self):
+        #Initialise internal settings for the neural networks
         settings0 = {'data_im_dirname': 'data',
             'seg_im_out_dirname': 'seg',
             'model_output_fn': 'trained_2d_model',
@@ -107,6 +93,8 @@ class cMultiAxisRotationsSegmentor():
         Train NN1 (volume segmantics) and NN2 (MLP Classifier)
         """
 
+        self.labels_dtype= trainlabels.dtype
+
         # logging.basicConfig(
         #     level=logging.INFO, format=cfg.LOGGING_FMT, datefmt=cfg.LOGGING_DATE_FMT
         # )
@@ -135,18 +123,16 @@ class cMultiAxisRotationsSegmentor():
         #Build data object containing all predictions
         data0 = read_h5_to_np(pred_data_probs_filenames[0])
 
-        #Take this oportunity to calculate metrics of each prediction
-        
         all_shape = ( len(pred_data_probs_filenames), *data0.shape )
-        data_all = np.zeros( all_shape)
+        data_all_np = np.zeros( all_shape)
         #Fill with data
-        data_all[0,:,:,:]= data0
+        data_all_np[0,:,:,:]= data0
         for i in range(1,len(pred_data_probs_filenames)):
             print(i)
             data_i = read_h5_to_np(pred_data_probs_filenames[i])
-            data_all[i,:,:,:]=data_i
+            data_all_np[i,:,:,:]=data_i
 
-
+        #Take this oportunity to calculate metrics of each prediction if required
         nn1_acc_dice_s= []
         if get_metrics:
             for i, label_fn0 in enumerate(pred_data_labels_filenames):
@@ -158,7 +144,7 @@ class cMultiAxisRotationsSegmentor():
 
 
         #Train NN2 from multi-axis multi-angle predictions against labels (gnd truth)
-        nn2_acc, nn2_dice = self.NN2_train(data_all, trainlabels, get_metrics=get_metrics)
+        nn2_acc, nn2_dice = self.NN2_train(data_all_np, trainlabels, get_metrics=get_metrics)
 
         tempdir_pred.cleanup()
 
@@ -169,7 +155,6 @@ class cMultiAxisRotationsSegmentor():
         Creates predicted labels from a whole data volume
         using the double NN1+NN2 pipeline
         """
-        #TODO: Test
         #Predict from provided volumetric data using the trained model defined here
 
         #Check if the following objects are avaialble
@@ -187,7 +172,17 @@ class cMultiAxisRotationsSegmentor():
             print("Building large object containing all predictions.")
             data0 = read_h5_to_np(pred_data_probs_filenames[0]) 
             all_shape = ( len(pred_data_probs_filenames), *data0.shape )
-            data_all = np.zeros( all_shape)
+            print(f"all_shape:{all_shape}")
+
+            #TODO: Ensure datatype is correct when creating arrays
+            try:
+                data_all = np.zeros(all_shape, dtype=data0.dtype) #May lead to very large dataset which may lead to memory allocation error
+            except:
+                print("Allocation using numpy failed. Will use dask.")
+                chunks_shape = (len(pred_data_probs_filenames), 128,128,128, data0.shape[-1] )
+                data_all=da.zeros(all_shape, chunks=chunks_shape )
+                #in case of 12 predictions and 3 labels, the chunks will be (12,128,128,128,3) size
+
             #Fill with data
             data_all[0,:,:,:]= data0
             for i in range(1,len(pred_data_probs_filenames)):
@@ -208,7 +203,8 @@ class cMultiAxisRotationsSegmentor():
 
 
     def NN2_train(self, train_data_all_probs, trainlabels, get_metrics=True):
-                
+        print("NN2 train")
+
         #Get several points to train NN2
         x_origs = np.arange(0, train_data_all_probs.shape[3],5)
         y_origs = np.arange(0,train_data_all_probs.shape[2],5)
@@ -236,9 +232,11 @@ class cMultiAxisRotationsSegmentor():
             y_train.append(label_vol_label)
 
         #Setup classifier
+        print("Setup NN2 MLPClassifier")
         self.NN2 = MLPClassifier(hidden_layer_sizes=(10,10), random_state=1, activation='tanh', verbose=True, learning_rate_init=0.001,solver='sgd', max_iter=1000)
 
         #Do the training here
+        print(f"NN2 MLPClassifier fit with {len(X_train)} samples, (y_train {len(y_train)} samples)")
         self.NN2.fit(X_train,y_train)
 
         print(f"NN2 train score:{self.NN2.score(X_train,y_train)}")
@@ -261,20 +259,66 @@ class cMultiAxisRotationsSegmentor():
 
     def NN2_predict(self, data_all_probs):
         
-        #Need to flatten along the npred and nclasses
-        data_2MLP_t= np.transpose(data_all_probs,(1,2,3,0,4))
+        print("NN2_predict()")
 
-        dsize = data_2MLP_t.shape[0]*data_2MLP_t.shape[1]*data_2MLP_t.shape[2]
-        inputsize = data_2MLP_t.shape[3]*data_2MLP_t.shape[4]
+        if isinstance(data_all_probs, np.ndarray):
+            print("Data type is numpy.ndarray")
 
-        data_2MLP_t_reshape = np.reshape(data_2MLP_t, (dsize, inputsize))
+            #Need to flatten along the npred and nclasses
+            data_2MLP_t= np.transpose(data_all_probs,(1,2,3,0,4))
 
-        mlppred = self.NN2.predict(data_2MLP_t_reshape)
+            dsize = data_2MLP_t.shape[0]*data_2MLP_t.shape[1]*data_2MLP_t.shape[2]
+            inputsize = data_2MLP_t.shape[3]*data_2MLP_t.shape[4]
 
-        #Reshape back to 3D
-        mlppred_3D = np.reshape(mlppred, data_2MLP_t.shape[0:3])
+            data_2MLP_t_reshape = np.reshape(data_2MLP_t, (dsize, inputsize))
 
-        return mlppred_3D
+            mlppred = self.NN2.predict(data_2MLP_t_reshape)
+
+            #Reshape back to 3D
+            mlppred_3D = np.reshape(mlppred, data_2MLP_t.shape[0:3])
+
+            return mlppred_3D
+        
+        elif isinstance(data_all_probs, da.core.Array):
+            print("Data type is dask.core.Array")
+            #Use dask reduction functionality to do the predictions
+
+            def chunkf(x,axis, keepdims, computing_meta=False):
+                #Assumes that data has the right chunk dimensions
+                data0 = np.asarray(x)
+                data_2MLP_t= np.transpose(data0,(1,2,3,0,4))
+                dsize = data_2MLP_t.shape[0]*data_2MLP_t.shape[1]*data_2MLP_t.shape[2]
+                inputsize = data_2MLP_t.shape[3]*data_2MLP_t.shape[4]
+                data_2MLP_t_reshape = np.reshape(data_2MLP_t, (dsize, inputsize))
+                mlppred = self.NN2.predict(data_2MLP_t_reshape)
+                
+                #Reshape back to 5D
+                mlppred_3D_chunk = np.reshape(mlppred, (1,*data_2MLP_t.shape[0:3],1))
+
+                return mlppred_3D_chunk
+
+
+            def aggf(x, axis, keepdims):
+                #print(f"aggf: axis:{axis}, keepdims:{keepdims}, x.shape:", x.shape)
+                if not keepdims:
+                    x_res= np.squeeze(x, axis=(0,4)) #Remove axis 0 and 4
+                    return x_res
+                return x
+
+
+            b = da.reduction(data_all_probs,
+                            chunk=chunkf,
+                            aggregate= aggf,
+                            dtype=self.labels_dtype,
+                            keepdims=False,
+                            axis=(0,4)) #It appeears that his axis parameter is simply passed to chnkf and aggf and that's it.
+
+            print("Starting dask computation")
+            b_comp=b.compute()
+            print(f"Completed. res shape:{b_comp.shape}")
+
+            return b_comp
+
     
 
     def NN1_train(self, traindata, trainlabels):
