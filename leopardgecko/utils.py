@@ -6,9 +6,7 @@ import dask.array as da
 def save_data_to_hdf5(data, file_path, internal_path="/data", chunking=True):
     logging.info(f"Saving data of shape {data.shape} to {file_path}.")
     with h5py.File(file_path, "w") as f:
-        f.create_dataset(
-            "/data", data=data, chunks=chunking
-        )
+        f.create_dataset("/data", data=data, chunks=chunking)
 def read_h5_to_np(file_path):
     with h5py.File(file_path,'r') as data_file:
         data_hdf5=np.array(data_file['data'])
