@@ -14,7 +14,7 @@ from pathlib import Path
 
 import os
 cwd = os.getcwd()
-print(cwd)
+#print(cwd)
 
 import tempfile
 import logging
@@ -158,8 +158,8 @@ class cMultiAxisRotationsSegmentor():
         data_all_np = np.zeros( all_shape)
         #Fill with data
         data_all_np[0,:,:,:,:]= data0
-        for i in range(1,len(pred_data_probs_filenames)):
-            print(i)
+        for i in tqdm.trange(1,len(pred_data_probs_filenames), desc="Loading prediction files"):
+            #print(i)
             data_i = read_h5_to_np(pred_data_probs_filenames[i])
             data_all_np[i,:,:,:,:]=data_i
 
@@ -215,7 +215,7 @@ class cMultiAxisRotationsSegmentor():
                 data_all = np.zeros(all_shape, dtype=data0.dtype) #May lead to very large dataset which may lead to memory allocation error
                 #Fill with data
                 data_all[0,:,:,:]= data0
-                for i in tqdm.trange(1,len(pred_data_probs_filenames), desc="Loading predictions"):
+                for i in tqdm.trange(1,len(pred_data_probs_filenames), desc="Loading prediction files"):
                     data_i = read_h5_to_np(pred_data_probs_filenames[i])
                     data_all[i,:,:,:,:]=data_i
             except:
@@ -283,7 +283,7 @@ class cMultiAxisRotationsSegmentor():
         #Setup classifier
         print("Setup NN2 MLPClassifier")
         #self.NN2 = MLPClassifier(hidden_layer_sizes=(10,10), random_state=1, activation='tanh', verbose=True, learning_rate_init=0.001,solver='sgd', max_iter=1000)
-        self.NN2 = MLPClassifier(*self.NN2_settings)
+        self.NN2 = MLPClassifier(**self.NN2_settings.__dict__) #Unpack dict to become parameters
 
         #Do the training here
         print(f"NN2 MLPClassifier fit with {len(X_train)} samples, (y_train {len(y_train)} samples)")
