@@ -112,6 +112,7 @@ class cMultiAxisRotationsSegmentor():
             'max_iter':1000
         } 
         self.NN2_settings = SimpleNamespace(**settingsNN2)
+        self.labels_dtype=None #default
 
     
     def train(self, traindata, trainlabels, get_metrics=True):
@@ -192,7 +193,7 @@ class cMultiAxisRotationsSegmentor():
         #Check if the following objects are avaialble
         #self.volseg2pred #NN1 predictor (attention the NN1_predict() loads the model from file!!)
         print(f"predict() data_in.shape:{data_in.shape}, data_in.dtype:{data_in.dtype}, use_dask:{use_dask}")
-        
+
         if not self.model_NN1_path is None and not self.NN2 is None:
             print("NN1 prediction")
 
@@ -241,7 +242,7 @@ class cMultiAxisRotationsSegmentor():
                         #Fill with data
                         data_all[0,:,:,:,:]= data0
                         for i in tqdm.trange(1,len(pred_data_probs_filenames), desc="Loading predictions"):
-                            print(i)
+                            #print(i)
                             data_i = read_h5_to_da(pred_data_probs_filenames[i])
                             data_all[i,:,:,:,:]=data_i
 
@@ -249,6 +250,7 @@ class cMultiAxisRotationsSegmentor():
                     except:
                         print("Allocation failed with dask. Returning None")
                         data_all=None
+                        bcomplete=True
 
             d_prediction=None #Default return value
             if not data_all is None:
@@ -376,11 +378,14 @@ class cMultiAxisRotationsSegmentor():
                     return x_res
                 return x
 
+            dtype0 = self.labels_dtype
+            if dtype0 is None:
+                dtype0=self.NN2.classes_.dtype
 
             b = da.reduction(data_all_probs,
                             chunk=chunkf,
                             aggregate= aggf,
-                            dtype=self.labels_dtype,
+                            dtype=dtype0,
                             keepdims=False,
                             axis=(0,4)) #It appeears that his axis parameter is simply passed to chnkf and aggf and that's it.
 
