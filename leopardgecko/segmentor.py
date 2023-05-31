@@ -155,7 +155,7 @@ class cMultiAxisRotationsSegmentor():
         data0 = read_h5_to_np(pred_data_probs_filenames[0])
 
         all_shape = ( len(pred_data_probs_filenames), *data0.shape )
-        data_all_np = np.zeros( all_shape)
+        data_all_np = np.zeros( all_shape, dtype=data0.dtype)
         #Fill with data
         data_all_np[0,:,:,:,:]= data0
         for i in tqdm.trange(1,len(pred_data_probs_filenames), desc="Loading prediction files"):
@@ -182,7 +182,7 @@ class cMultiAxisRotationsSegmentor():
 
         return nn1_acc_dice_s, (nn2_acc, nn2_dice)
     
-    def predict(self, data_in):
+    def predict(self, data_in, use_dask=False):
         """
         Creates predicted labels from a whole data volume
         using the double NN1+NN2 pipeline
@@ -191,6 +191,7 @@ class cMultiAxisRotationsSegmentor():
 
         #Check if the following objects are avaialble
         #self.volseg2pred #NN1 predictor (attention the NN1_predict() loads the model from file!!)
+        print(f"predict() data_in.shape:{data_in.shape}, data_in.dtype:{data_in.dtype}, use_dask:{use_dask}")
         
         if not self.model_NN1_path is None and not self.NN2 is None:
             print("NN1 prediction")
@@ -208,47 +209,61 @@ class cMultiAxisRotationsSegmentor():
             print("Building large object containing all predictions.")
             #Build data object containing all predictions
             #Try using numpy. If memory error use dask instead
-            try:
-                data0 = read_h5_to_np(pred_data_probs_filenames[0]) 
-                all_shape = ( len(pred_data_probs_filenames), *data0.shape )
-                print(f"all_shape:{all_shape}")
-                data_all = np.zeros(all_shape, dtype=data0.dtype) #May lead to very large dataset which may lead to memory allocation error
-                #Fill with data
-                data_all[0,:,:,:]= data0
-                for i in tqdm.trange(1,len(pred_data_probs_filenames), desc="Loading prediction files"):
-                    data_i = read_h5_to_np(pred_data_probs_filenames[i])
-                    data_all[i,:,:,:,:]=data_i
-            except:
-                print("Allocation using numpy failed. Will use dask.")
+            bcomplete=False
+            while not bcomplete:
+                if not use_dask:
+                    try:
+                        data0 = read_h5_to_np(pred_data_probs_filenames[0]) 
+                        all_shape = ( len(pred_data_probs_filenames), *data0.shape )
+                        print(f"all_shape:{all_shape}")
+                        data_all = np.zeros(all_shape, dtype=data0.dtype) #May lead to very large dataset which may lead to memory allocation error
+                        #Fill with data
+                        data_all[0,:,:,:,:]= data0
+                        for i in tqdm.trange(1,len(pred_data_probs_filenames), desc="Loading prediction files"):
+                            data_i = read_h5_to_np(pred_data_probs_filenames[i])
+                            data_all[i,:,:,:,:]=data_i
 
-                data0 = read_h5_to_da(pred_data_probs_filenames[0]) 
-                all_shape = ( len(pred_data_probs_filenames), *data0.shape )
-                print(f"all_shape:{all_shape}")
+                        bcomplete=True #Flag completion to exit while loop
+                    except:
+                        print("Allocation using numpy failed. Failsafe will use dask.")
+                        use_dask=True
+                else:
+                    try:
+                        data0 = read_h5_to_da(pred_data_probs_filenames[0]) 
+                        all_shape = ( len(pred_data_probs_filenames), *data0.shape )
+                        print(f"all_shape:{all_shape}")
 
-                chunks_shape = (len(pred_data_probs_filenames), *data0.chunksize )
-                print(f"dask data_all will have chunksize set to {chunks_shape}")
-                data_all=da.zeros(all_shape, chunks=chunks_shape )
-                #in case of 12 predictions and 3 labels, the chunks will be (12,128,128,128,3) size
+                        chunks_shape = (len(pred_data_probs_filenames), *data0.chunksize )
+                        print(f"dask data_all will have chunksize set to {chunks_shape}")
+                        data_all=da.zeros(all_shape, chunks=chunks_shape , dtype=data0.dtype)
+                        #in case of 12 predictions and 3 labels, the chunks will be (12,128,128,128,3) size
 
-                #Fill with data
-                data_all[0,:,:,:]= data0
-                for i in tqdm.trange(1,len(pred_data_probs_filenames), desc="Loading predictions"):
-                    print(i)
-                    data_i = read_h5_to_da(pred_data_probs_filenames[i])
-                    data_all[i,:,:,:,:]=data_i
+                        #Fill with data
+                        data_all[0,:,:,:,:]= data0
+                        for i in tqdm.trange(1,len(pred_data_probs_filenames), desc="Loading predictions"):
+                            print(i)
+                            data_i = read_h5_to_da(pred_data_probs_filenames[i])
+                            data_all[i,:,:,:,:]=data_i
 
-            print("NN2 prediction")
-            d_prediction= self.NN2_predict( data_all)
-            
-            print("NN2 prediction complete.")
+                        bcomplete=True
+                    except:
+                        print("Allocation failed with dask. Returning None")
+                        data_all=None
+
+            d_prediction=None #Default return value
+            if not data_all is None:
+                print("NN2 prediction")
+                d_prediction= self.NN2_predict( data_all)
+                
+                print("NN2 prediction complete.")
 
             if not tempdir_pred is None:
                 print(f"Cleaning up tempdir_pred: {tempdir_pred_path}")
                 tempdir_pred.cleanup()
 
-            return d_prediction
+            #return d_prediction
 
-        return None
+        return d_prediction
 
 
     def NN2_train(self, train_data_all_probs, trainlabels, get_metrics=True):
@@ -585,9 +600,9 @@ class cMultiAxisRotationsSegmentor():
 
         with ZipFile(filename, 'r') as zipobj:
             ##NN1 model
-            nn1_model_temp_dir = tempfile.TemporaryDirectory()
-            zipobj.extract("NN1_model.pytorch",nn1_model_temp_dir.name)
-            self.model_NN1_path=Path(nn1_model_temp_dir.name,"NN1_model.pytorch")
+            self.nn1_model_temp_dir = tempfile.TemporaryDirectory()
+            zipobj.extract("NN1_model.pytorch",self.nn1_model_temp_dir.name)
+            self.model_NN1_path=Path(self.nn1_model_temp_dir.name,"NN1_model.pytorch")
 
             with zipobj.open("NN1_train_settings.joblib",'r') as z0:
                 self.NN1_train_settings= joblib.load(z0)
