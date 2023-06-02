@@ -122,14 +122,38 @@ class cMultiAxisRotationsSegmentor():
         Train NN1 (volume segmantics) and NN2 (MLP Classifier)
         """
 
-        self.labels_dtype= trainlabels.dtype
+        trainlabels0 = None
+        traindata0=None
+        #Check traindata is 3D or list
+        if isinstance(traindata, np.ndarray) and isinstance(trainlabels, np.ndarray) :
+            print("traindata and trainlabels are ndarray")
+            if traindata.ndim!=3 or trainlabels!=3:
+                raise ValueError(f"traindata or trainlabels not 3D")
+            else:
+                #Convert to list so that can be used later
+                traindata = [traindata]
+                trainlabels=[trainlabels]
+        else:
+            if isinstance(traindata, list) and isinstance(trainlabels, list):
+                print("traindata and trainlabels are list")
+                if len(traindata)!=len(trainlabels):
+                    raise ValueError("len(traindata)!=len(trainlabels) error. Must be the same number of items.")
+                else:
+                    traindata0=traindata
+                    trainlabels0=trainlabels
+
+        self.labels_dtype= trainlabels[0].dtype
+
+        #How many sets?
+        nsets=len(traindata)
+        print(f"nsets:{nsets}")
 
         # logging.basicConfig(
         #     level=logging.INFO, format=cfg.LOGGING_FMT, datefmt=cfg.LOGGING_DATE_FMT
         # )
         
         # ** Train NN1
-        self.NN1_train(traindata, trainlabels)
+        self.NN1_train(traindata0, trainlabels0)
         #(This does not return anything.)
 
 
@@ -156,35 +180,30 @@ class cMultiAxisRotationsSegmentor():
         # print("pred_data_probs_filenames:", pred_data_probs_filenames)
         # print("pred_data_labels_filenames:", pred_data_labels_filenames)
 
-        all_pred_pd = self.NN1_predict(traindata, tempdir_pred_path)
+        all_pred_pd = self.NN1_predict(traindata0, tempdir_pred_path)
 
-        #Take this oportunity to calculate metrics of each prediction if required
+        #Take this oportunity to calculate metrics of each prediction labels if required
         nn1_acc_dice_s= []
-        pred_data_probs_filenames=all_pred_pd['pred_data_labels_filenames'].tolist() #note that all sets will be included in this list
+        #pred_data_probs_filenames=all_pred_pd['pred_data_labels_filenames'].tolist() #note that all sets will be included in this list
         if get_metrics:
-            for i, label_fn0 in enumerate(pred_data_probs_filenames):
-                data_i = read_h5_to_np(label_fn0)
-                a0 =  metrics.MetricScoreOfVols_Accuracy(data_i,trainlabels)
-                d0 = metrics.MetricScoreOfVols_Dice(data_i,trainlabels)
+            #for i, label_fn0 in enumerate(pred_data_probs_filenames):
+            for prow in all_pred_pd:
+                pred_labels_fn = prow['pred_data_labels_filenames']
+                iset = prow['pred_sets']
+                ipred = prow['pred_ipred']
+                data_i = read_h5_to_np(pred_labels_fn)
+
+                #What is the corresponding iset?
+                a0 =  metrics.MetricScoreOfVols_Accuracy(data_i,trainlabels0[iset])
+                d0 = metrics.MetricScoreOfVols_Dice(data_i,trainlabels0[iset])
                 nn1_acc_dice_s.append( [a0,d0])
-                print(f"prediction:{i} , filename: {label_fn0}, accuracy:{a0}, dice:{d0}")
+                print(f"prediction iset:{iset}, ipred:{ipred}, filename: {pred_labels_fn}, accuracy:{a0}, dice:{d0}")
 
         # ** NN2 training
 
         #Need to train next model by running predictions and optimize MLP
-
         #Use multi-predicted data and labels to train NN2
-
         #Build data object containing all predictions
-        
-        # TODO: This does not support multiple training datasets!!
-        #Aggregrate multiple sets into one
-
-        #How many sets?
-        nsets=1
-        if isinstance(traindata, list):
-            nsets=len(traindata)
-        print(f"nsets:{nsets}")
 
         npredictions_per_set = int(np.max(all_pred_pd['pred_tags'].to_numpy())+1)
         print(f"npredictions_per_set:{npredictions_per_set}")
@@ -207,36 +226,38 @@ class cMultiAxisRotationsSegmentor():
         #     data_i = read_h5_to_np(pred_data_probs_filenames[i])
         #     data_all_np[i,:,:,:,:]=data_i
 
-        if not isinstance(trainlabels, list):
-            trainlabels=[trainlabels]
 
-        data_all_np=None
-        trainlabels=None
-        # aggregate multiple sets
-        for itag in range(npredictions_per_set):
-            pred_probs_fns_for_itag = all_pred_pd[ all_pred_pd['pred_tags']==itag]['pred_data_probs_filenames'].tolist()
+        
+        
+        data_all_np5d=None
 
-            assert len(pred_probs_fns_for_itag)==nsets
+        # aggregate multiple sets for data
+        for i,prow in enumerate(all_pred_pd):
 
-            #Agregate all data with the same itag by vertical stacking
-            for iset, fn in enumerate(pred_probs_fns_for_itag):
-                
+            prob_filename = prow['pred_data_probs_filenames']
+            data0 = read_h5_to_np(prob_filename)
 
-            if itag==0:
+            if i==0:
+                #initialise
+                print(f"data0.shape:{data0.shape}")
+                all_shape0 = (
+                    nsets,
+                    npredictions_per_set,
+                    *data0.shape
+                    )
+                # (iset, ipred, iz,iy,ix, ilabel) , 5dim
 
-                for 
-                #Aggregate data from files
-                #First time, initialise
-                read_h5_to_np(pred_data_probs_filenames[0])
-                data_all_np=np.array( [[ ]])
-            else:
+                data_all_np5d=np.zeros( all_shape0 , data0.dtype)
 
+            
+            ipred=prow['pred_ipred']
+            iset=prow['pred_sets']
 
-
+            data_all_np5d[iset,ipred, :,:,:, :] = data0
 
 
         #Train NN2 from multi-axis multi-angle predictions against labels (gnd truth)
-        nn2_acc, nn2_dice = self.NN2_train(data_all_np, trainlabels, get_metrics=get_metrics)
+        nn2_acc, nn2_dice = self.NN2_train(data_all_np5d, trainlabels0, get_metrics=get_metrics)
 
         if not tempdir_pred is None:
             tempdir_pred.cleanup()
@@ -328,13 +349,20 @@ class cMultiAxisRotationsSegmentor():
         return d_prediction
 
 
-    def NN2_train(self, train_data_all_probs, trainlabels, get_metrics=True):
+    def NN2_train(self, train_data_all_probs_5d, trainlabels_list, get_metrics=True):
         print("NN2 train")
 
+        #Assumes train_data_all_probs_list is 5d
+        # and that trainlabels_list is a list of 3d volumes
+
+        assert train_data_all_probs_5d.shape[0]==len(trainlabels_list)
+
+        nsets= len(trainlabels_list)
+
         #Get several points to train NN2
-        x_origs = np.arange(0, train_data_all_probs.shape[3],5)
-        y_origs = np.arange(0,train_data_all_probs.shape[2],5)
-        z_origs = np.arange(0,train_data_all_probs.shape[1],5)
+        x_origs = np.arange(0, train_data_all_probs_5d.shape[3],5)
+        y_origs = np.arange(0,train_data_all_probs_5d.shape[2],5)
+        z_origs = np.arange(0,train_data_all_probs_5d.shape[1],5)
         x_mg, y_mg, z_mg = np.meshgrid(x_origs,y_origs, z_origs)
         all_origs_list = np.transpose(np.vstack( (z_mg.flatten() , y_mg.flatten() , x_mg.flatten() ) ) ).tolist()
 
@@ -343,10 +371,12 @@ class cMultiAxisRotationsSegmentor():
 
         X_train=[] # as list of volume data, flattened for each voxel
         
+        iset_randoms = np.random.default_rng().integers(0,ntrain)
+
         for i in tqdm.trange(ntrain):
             el = all_origs_list[i]
             z,y,x = el
-            data_vol = train_data_all_probs[:,z,y,x,:]
+            data_vol = train_data_all_probs_5d[iset_randoms[i],:,z,y,x,:]
             data_vol_flat = data_vol.flatten()
             X_train.append(data_vol_flat)
 
@@ -354,7 +384,7 @@ class cMultiAxisRotationsSegmentor():
         for i in tqdm.trange(ntrain):
             el = all_origs_list[i]
             z,y,x = el
-            label_vol_label = trainlabels[z,y,x]
+            label_vol_label = trainlabels_list[iset_randoms[i]][z,y,x]
             y_train.append(label_vol_label)
 
         #Setup classifier
@@ -373,11 +403,11 @@ class cMultiAxisRotationsSegmentor():
         if get_metrics:
             print("Preparing to predict the whole training volume")
         
-            d_prediction= self.NN2_predict( train_data_all_probs)
+            d_prediction= self.NN2_predict( train_data_all_probs_5d)
 
             #Get metrics
-            nn2_acc= metrics.MetricScoreOfVols_Accuracy(trainlabels,d_prediction)
-            nn2_dice= metrics.MetricScoreOfVols_Dice(trainlabels,d_prediction, useBckgnd=False)
+            nn2_acc= metrics.MetricScoreOfVols_Accuracy(trainlabels_list,d_prediction)
+            nn2_dice= metrics.MetricScoreOfVols_Dice(trainlabels_list,d_prediction, useBckgnd=False)
 
             print(f"NN2 acc:{nn2_acc}, dice:{nn2_dice}")
         
@@ -455,28 +485,18 @@ class cMultiAxisRotationsSegmentor():
 
             return b_comp
 
-    def NN1_train(self, traindata, trainlabels):
+    def NN1_train(self, traindata_list, trainlabels_list):
         """
-        traindata: a 3d volume or a list of 3d volumes
+        traindata: a list of 3d volumes
+        trainlabels : a list of 3d volumes with corresponding labels
 
         This code is share similarities to volumesegmantics train_2d_model.py
         
         """
-        #Check traindata is 3D or list
-        if isinstance(traindata, np.ndarray) and isinstance(trainlabels, np.ndarray) :
-            print("traindata and are ndarray")
-            if traindata.ndim!=3 or trainlabels!=3:
-                raise ValueError(f"traindata or trainlabels not 3D")
-            else:
-                #Convert to list so that can be used in for loop
-                traindata = [traindata]
-                trainlabels=[trainlabels]
-        else:
-            if isinstance(traindata, list) and isinstance(trainlabels, list):
-                print("traindata and trainlabels are list")
-                if len(traindata)!=len(trainlabels):
-                    raise ValueError("len(traindata)!=len(trainlabels) error. Must be the same number of items.")
 
+        if not(isinstance(traindata_list, list) and isinstance(trainlabels_list, list) ):
+            raise ValueError("Invalid traindata_list or trainlabels_list")
+        
         tempdir_data=None
         tempdir_seg=None
         if self.temp_data_outdir is None:
@@ -507,7 +527,7 @@ class cMultiAxisRotationsSegmentor():
         label_codes = None
 
         # Set up the DataSlicer and slice the data volumes into image files
-        for count , (traindata0, trainlabels0) in enumerate(zip(traindata, trainlabels)):
+        for count , (traindata0, trainlabels0) in enumerate(zip(traindata_list, trainlabels_list)):
             slicer = TrainingDataSlicer(traindata0, trainlabels0, self.NN1_train_settings)
             data_prefix, label_prefix = f"data{count}", f"seg{count}"
             slicer.output_data_slices(tempdir_data_path, data_prefix)
@@ -555,7 +575,7 @@ class cMultiAxisRotationsSegmentor():
 
         Returns: a pandas Dataframe with results of predictions in
         filenames of probabilities and labels,
-        and respective set, rotation and plane
+        and respective set, rotation, plane, and ipred
 
         """
 
@@ -581,7 +601,7 @@ class cMultiAxisRotationsSegmentor():
         pred_sets=[]
         pred_planes=[]
         pred_rots=[]
-        pred_tags=[]
+        pred_ipred=[]
 
         for i, data_to_predict0 in enumerate(data_to_predict_l):
 
@@ -616,7 +636,7 @@ class cMultiAxisRotationsSegmentor():
                 pred_sets.append(i)
                 pred_planes.append("YX")
                 pred_rots.append(rot_angle_degrees)
-                pred_tags.append(itag)
+                pred_ipred.append(itag)
                 itag+=1
 
                 
@@ -636,7 +656,7 @@ class cMultiAxisRotationsSegmentor():
                 pred_sets.append(i)
                 pred_planes.append("ZX")
                 pred_rots.append(rot_angle_degrees)
-                pred_tags.append(itag)
+                pred_ipred.append(itag)
                 itag+=1
 
                 #ZY
@@ -655,7 +675,7 @@ class cMultiAxisRotationsSegmentor():
                 pred_sets.append(i)
                 pred_planes.append("ZY")
                 pred_rots.append(rot_angle_degrees)
-                pred_tags.append(itag)
+                pred_ipred.append(itag)
                 itag+=1
 
             del(data_vol)
@@ -666,7 +686,7 @@ class cMultiAxisRotationsSegmentor():
             'pred_sets':pred_sets,
             'pred_planes':pred_planes,
             'pred_rots':pred_rots,
-            'pred_tags':pred_tags
+            'pred_ipred':pred_ipred
         })
         
         #return pred_data_probs_filenames, pred_data_labels_filenames
