@@ -69,24 +69,34 @@ def MetricScoreOfVols_Dice(vol0, vol1, useBckgnd=False):
         #equalvol = np.equal(vol0,vol1).astype(np.float32)
         #res = equalvol.mean()
 
-    #Number of segmentations
-    nseg0 = np.max(vol0)
-    nseg1 = np.max(vol1)
-    logging.info(f"Number of class segmentations in first volume {nseg0+1}")
-    logging.info(f"Number of class segmentations in second volume {nseg1+1}")
+    #Number of segmentations(this is a bad estimate)
+    # nseg0 = np.max(vol0)
+    # nseg1 = np.max(vol1)
+    # logging.info(f"Number of class segmentations in first volume {nseg0+1}")
+    # logging.info(f"Number of class segmentations in second volume {nseg1+1}")
+
+    segs0 = np.unique(vol0)
+    segs1 = np.unique(vol1)
+    nseg0 = len(segs0)
+    nseg1 = len(segs1)
+
+    logging.info(f"Number of class segmentations in first volume {nseg0}")
+    logging.info(f"Number of class segmentations in second volume {nseg1}")
 
     if nseg0 != nseg1:
         logging.warning ("Number of segmentations between volumes is different.")
     
-    nseg = max(nseg0, nseg1)
 
-    isegstart=1
-    if useBckgnd: isegstart=0
+    # nseg = max(nseg0, nseg1)
+
+    # isegstart=1
+    # if useBckgnd: isegstart=0
     
     #Calculate dice of each metric
     #Similar to code in https://github.com/fastai/fastai/blob/master/fastai/metrics.py#L343
 
-    
+    allsegs = np.concatenate((segs0, segs1))
+
     dicescores=np.array([])
 
     #Use dask arrays is arrays are too large >1Gb
@@ -96,37 +106,41 @@ def MetricScoreOfVols_Dice(vol0, vol1, useBckgnd=False):
         usedask=True
     
     if not usedask:
-        for iseg in range(isegstart,nseg+1): #include last value , discards background (iseg=0)
-            p = np.where(vol0 == iseg, 1, 0)
-            t = np.where(vol1 == iseg, 1, 0)
-            # c_inter = (p*t).astype(np.float32).sum()
-            # c_union = (p+t).astype(np.float32).sum()
-            c_inter = np.sum( (p*t) , dtype=np.float64 )
-            c_union = np.sum( (p+t) , dtype=np.float64 )
+        # for iseg in range(isegstart,nseg+1): #include last value , discards background (iseg=0)
+        for iseg in allsegs:
+            if (iseg==0 and useBckgnd) or (iseg!=0):
+                p = np.where(vol0 == iseg, 1, 0)
+                t = np.where(vol1 == iseg, 1, 0)
+                # c_inter = (p*t).astype(np.float32).sum()
+                # c_union = (p+t).astype(np.float32).sum()
+                c_inter = np.sum( (p*t) , dtype=np.float64 )
+                c_union = np.sum( (p+t) , dtype=np.float64 )
 
-            #dicescore= 2.*self.inter[c]/self.union[c] if self.union[c] > 0 else np.nan
-            dicescore= 2.*c_inter/c_union if c_union > 0 else np.nan
-            dicescores = np.append(dicescores, dicescore)
+                #dicescore= 2.*self.inter[c]/self.union[c] if self.union[c] > 0 else np.nan
+                dicescore= 2.*c_inter/c_union if c_union > 0 else np.nan
+                dicescores = np.append(dicescores, dicescore)
 
     else:
         dicescores=np.array([])
-        for iseg in range(isegstart,nseg+1):
-            vol0_da = da.from_array(vol0)
-            vol1_da = da.from_array(vol1)
+        #for iseg in range(isegstart,nseg+1):
+        for iseg in allsegs:
+            if (iseg==0 and useBckgnd) or (iseg!=0):
+                vol0_da = da.from_array(vol0)
+                vol1_da = da.from_array(vol1)
 
-            p = da.where(vol0_da == iseg, 1, 0)
-            t = da.where(vol1_da == iseg, 1, 0)
+                p = da.where(vol0_da == iseg, 1, 0)
+                t = da.where(vol1_da == iseg, 1, 0)
 
-            # c_inter = (p*t).astype(np.float32).sum()
-            # c_union = (p+t).astype(np.float32).sum()
-            c_inter = np.sum( (p*t) , dtype=np.float64 )
-            c_union = np.sum( (p+t) , dtype=np.float64 )
+                # c_inter = (p*t).astype(np.float32).sum()
+                # c_union = (p+t).astype(np.float32).sum()
+                c_inter = np.sum( (p*t) , dtype=np.float64 )
+                c_union = np.sum( (p+t) , dtype=np.float64 )
 
-            dicescore_da= 2.*c_inter/c_union if c_union > 0 else np.nan
-            logging.info(f"iseg={iseg}, compute()")
-            dicescore = dicescore_da.compute()
+                dicescore_da= 2.*c_inter/c_union if c_union > 0 else np.nan
+                logging.info(f"iseg={iseg}, compute()")
+                dicescore = dicescore_da.compute()
 
-            dicescores = np.append(dicescores, dicescore)
+                dicescores = np.append(dicescores, dicescore)
 
     logging.info(f"dicescores = {dicescores}")
     dicescore_all = np.nanmean(dicescores)

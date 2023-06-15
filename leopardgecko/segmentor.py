@@ -58,10 +58,10 @@ class cMultiAxisRotationsSegmentor():
 
     def _init_settings(self):
         #Initialise internal settings for the neural networks
-        settings0 = {'data_im_dirname': 'data',
+        NN1trainsettings0 = {'data_im_dirname': 'data',
             'seg_im_out_dirname': 'seg',
             'model_output_fn': 'trained_2d_model',
-            'clip_data': False,
+            'clip_data': True, #Note this changed to true from default in volume_segmantics
             'st_dev_factor': 2.575,
             'data_hdf5_path': '/data',
             'seg_hdf5_path': '/data',
@@ -87,9 +87,9 @@ class cMultiAxisRotationsSegmentor():
             'encoder_name': 'resnet34',
             'encoder_weights': 'imagenet'}}
 
-        self.NN1_train_settings = SimpleNamespace(**settings0)
+        self.NN1_train_settings = SimpleNamespace(**NN1trainsettings0)
 
-        settings1 = {'quality': 'high',
+        NN1predsettings0 = {'quality': 'high',
             'output_probs': True,
             'clip_data': True,
             'st_dev_factor': 2.575,
@@ -99,7 +99,7 @@ class cMultiAxisRotationsSegmentor():
             'one_hot': False,
             'prediction_axis': 'Z'}
 
-        self.NN1_pred_settings = SimpleNamespace(**settings1)
+        self.NN1_pred_settings = SimpleNamespace(**NN1predsettings0)
 
         #Default setting for NN" MLP classifier
         #Note that these settings are not saved like the others
@@ -120,6 +120,13 @@ class cMultiAxisRotationsSegmentor():
     def train(self, traindata, trainlabels, get_metrics=True):
         """
         Train NN1 (volume segmantics) and NN2 (MLP Classifier)
+
+        Returns:
+            Tuple nn1_acc_dice_s, (nn2_acc, nn2_dice)
+            with nn1_acc_dice_s being a list of accuracy, dice of each predictions
+
+            and (nn2_acc, nn2_dice) being the accuracy and dice result from NN1+NN2 combination
+            
         """
 
         trainlabels0 = None
@@ -291,6 +298,7 @@ class cMultiAxisRotationsSegmentor():
             bcomplete=False
             while not bcomplete:
                 if not use_dask:
+                    print("use_dask=False. Will try to aggregate data to a numpy.ndarray")
                     try:
                         data_all=None
                         # aggregate multiple sets for data
@@ -331,6 +339,7 @@ class cMultiAxisRotationsSegmentor():
                         print("Exception type:",type(exc0))
                         use_dask=True
                 else:
+                    print("use_dask=True. Will aggregate data to a dask.array object")
                     try:
                         # data0 = read_h5_to_da(pred_data_probs_filenames[0]) 
                         # all_shape = ( len(pred_data_probs_filenames), *data0.shape )
@@ -490,8 +499,11 @@ class cMultiAxisRotationsSegmentor():
         """
 
         #Load volume segmantics model from file to class instance
-        self.volseg2pred = VolSeg2dPredictor(self.model_NN1_path, self.NN1_pred_settings, use_dask=True)
+        #self.volseg2pred = VolSeg2dPredictor(self.model_NN1_path, self.NN1_pred_settings, use_dask=True)
+        #Using this VolSeg2dPredictor will not clip data
+        #Also moved this functionality to later
 
+        print("NN1_predict()")
         #Internal function
         def _save_pred_data(data, count,axis, rot):
             # Saves predicted data to h5 file in tempdir and return file path in case it is needed
@@ -513,9 +525,18 @@ class cMultiAxisRotationsSegmentor():
         pred_rots=[]
         pred_ipred=[]
 
+        print("number of data sets to predict:", len(data_to_predict_l))
+        
         for i, data_to_predict0 in enumerate(data_to_predict_l):
 
             data_vol0 = np.array(data_to_predict0) #Copies
+
+            #Check this is working
+            volseg2pred_m = VolSeg2DPredictionManager(
+                model_file_path= self.model_NN1_path,
+                data_vol=data_vol0,
+                settings=self.NN1_pred_settings,
+                use_dask=True)
 
             itag=0
             for krot in range(0, 4):
@@ -528,7 +549,7 @@ class cMultiAxisRotationsSegmentor():
                 #YX
                 logging.info("Predicting YX slices:")
                 #returns (labels,probabilities)
-                res = self.volseg2pred._predict_single_axis_all_probs(
+                res = volseg2pred_m.predictor._predict_single_axis_all_probs(
                     data_vol, axis=Axis.Z
                 )
                 pred_probs = np.rot90(res[1], -krot) #invert rotation before saving
@@ -552,7 +573,7 @@ class cMultiAxisRotationsSegmentor():
                 
                 #ZX
                 logging.info("Predicting ZX slices:")
-                res = self.volseg2pred._predict_single_axis_all_probs(
+                res = volseg2pred_m.predictor._predict_single_axis_all_probs(
                     data_vol, axis=Axis.Y
                 )
                 pred_probs = np.rot90(res[1], -krot) #invert rotation before saving
@@ -571,7 +592,7 @@ class cMultiAxisRotationsSegmentor():
 
                 #ZY
                 logging.info("Predicting ZY slices:")
-                res= self.volseg2pred._predict_single_axis_all_probs(
+                res= volseg2pred_m.predictor._predict_single_axis_all_probs(
                     data_vol, axis=Axis.X
                 )
                 pred_probs = np.rot90(res[1], -krot) #invert rotation before saving
