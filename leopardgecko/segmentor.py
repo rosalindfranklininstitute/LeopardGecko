@@ -4,7 +4,6 @@ TODO:
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
 import dask.array as da
 
 #import subprocess
@@ -61,7 +60,7 @@ class cMultiAxisRotationsSegmentor():
         NN1trainsettings0 = {'data_im_dirname': 'data',
             'seg_im_out_dirname': 'seg',
             'model_output_fn': 'trained_2d_model',
-            'clip_data': True, #Note this changed to true from default in volume_segmantics
+            'clip_data': False,
             'st_dev_factor': 2.575,
             'data_hdf5_path': '/data',
             'seg_hdf5_path': '/data',
@@ -492,9 +491,14 @@ class cMultiAxisRotationsSegmentor():
 
         predictions are probabilities (not labels)
 
-        Returns: a pandas Dataframe with results of predictions in
-        filenames of probabilities and labels,
-        and respective set, rotation, plane, and ipred
+        Params:
+            data_to_predict: a ndarray or a list of ndarrays with the 3D data to rund predictions from
+            pred_folder_out: a string with the location of where to drop results in h5 file format
+
+        Returns:
+            a pandas Dataframe with results of predictions in
+            filenames of probabilities and labels,
+            and respective set, rotation, plane, and ipred
 
         """
 
@@ -550,7 +554,8 @@ class cMultiAxisRotationsSegmentor():
                 logging.info("Predicting YX slices:")
                 #returns (labels,probabilities)
                 res = volseg2pred_m.predictor._predict_single_axis_all_probs(
-                    data_vol, axis=Axis.Z
+                    volseg2pred_m.data_vol, #Don't use data_vol0 as it is not clipped
+                    axis=Axis.Z
                 )
                 pred_probs = np.rot90(res[1], -krot) #invert rotation before saving
                 #Saves prediction labels
