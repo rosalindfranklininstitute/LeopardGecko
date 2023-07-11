@@ -366,7 +366,7 @@ class cMultiAxisRotationsSegmentor():
 
                             if i==0:
                                 #initialise
-                                print(f"data0.shape:{data0.shape}")
+                                print(f"i:{i}, data0.shape:{data0.shape}")
                                 npredictions = int(np.max(all_pred_pd['pred_ipred'].to_numpy())+1)
                                 print(f"npredictions:{npredictions}")
                                 
@@ -384,6 +384,7 @@ class cMultiAxisRotationsSegmentor():
                     except Exception as exc0:
                         print("Allocation failed with dask. Returning None")
                         print("Exception type:",type(exc0))
+                        print("Exception string:", str(exc0))
                         data_all=None
                         bcomplete=True
 
@@ -533,14 +534,16 @@ class cMultiAxisRotationsSegmentor():
         
         for i, data_to_predict0 in enumerate(data_to_predict_l):
 
-            data_vol0 = np.array(data_to_predict0) #Copies
+            data_vol1 = np.array(data_to_predict0) #Copies
 
             #Check this is working
             volseg2pred_m = VolSeg2DPredictionManager(
                 model_file_path= self.model_NN1_path,
-                data_vol=data_vol0,
+                data_vol=data_vol1,
                 settings=self.NN1_pred_settings,
                 use_dask=True)
+
+            data_vol0 = volseg2pred_m.data_vol  #Collects clipped data
 
             itag=0
             for krot in range(0, 4):
@@ -554,7 +557,7 @@ class cMultiAxisRotationsSegmentor():
                 logging.info("Predicting YX slices:")
                 #returns (labels,probabilities)
                 res = volseg2pred_m.predictor._predict_single_axis_all_probs(
-                    volseg2pred_m.data_vol, #Don't use data_vol0 as it is not clipped
+                    data_vol,
                     axis=Axis.Z
                 )
                 pred_probs = np.rot90(res[1], -krot) #invert rotation before saving
