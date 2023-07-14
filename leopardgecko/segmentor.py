@@ -42,7 +42,7 @@ import pandas as pd
 
 class cMultiAxisRotationsSegmentor():
 
-    def __init__(self, models_prefix="lg_segmentor_model_", temp_data_outdir=None):
+    def __init__(self, models_prefix="lg_segmentor_model_", temp_data_outdir=None, cuda_device=0):
         model_NN1_fn = models_prefix+"NN1.pytorch"
         #model_NN2_fn = models_prefix+"NN2.pk"
         
@@ -50,10 +50,13 @@ class cMultiAxisRotationsSegmentor():
         #self.model_NN2_path = Path(cwd, model_NN2_fn)
         
         self.chunkwidth = 64
-        self._init_settings()
+        
         self.nlabels=None #Will be used for chunking data
 
         self.temp_data_outdir=temp_data_outdir
+
+        self.cuda_device=cuda_device
+        self._init_settings()
 
     def _init_settings(self):
         #Initialise internal settings for the neural networks
@@ -68,7 +71,7 @@ class cMultiAxisRotationsSegmentor():
             'image_size': 256,
             'downsample': False,
             'training_set_proportion': 0.8,
-            'cuda_device': 0,
+            'cuda_device': self.cuda_device,
             'num_cyc_frozen': 8,
             'num_cyc_unfrozen': 5,
             'patience': 3,
@@ -93,7 +96,7 @@ class cMultiAxisRotationsSegmentor():
             'clip_data': True,
             'st_dev_factor': 2.575,
             'data_hdf5_path': '/data',
-            'cuda_device': 0,
+            'cuda_device': self.cuda_device,
             'downsample': False,
             'one_hot': False,
             'prediction_axis': 'Z'}
@@ -105,15 +108,21 @@ class cMultiAxisRotationsSegmentor():
         #They are just here if user wants to setup different settings for NN2 before training
         settingsNN2 ={
             'hidden_layer_sizes':[10,10],
+            'activation':'tanh',
             'random_state':1,
             'verbose':True,
-            'activation':'tanh',
             'learning_rate_init':0.001,
             'solver':'sgd',
-            'max_iter':1000
-        } 
+            'max_iter':1000,
+            'ntrain':4096 #Note that this is not a MLPClassifier parameter
+        }
         self.NN2_settings = SimpleNamespace(**settingsNN2)
         self.labels_dtype=None #default
+
+    def set_cuda_device(self,n):
+        self.cuda_device=n
+        self.NN1_train_settings.cuda_device=n
+        self.NN1predsettings0.cuda_device=n
 
     
     def train(self, traindata, trainlabels, get_metrics=True):
@@ -650,7 +659,8 @@ class cMultiAxisRotationsSegmentor():
         all_origs_list = np.transpose(np.vstack( (z_mg.flatten() , y_mg.flatten() , x_mg.flatten() ) ) ).tolist()
 
         random.shuffle(all_origs_list)
-        ntrain = min(len(all_origs_list), 4096)
+        #ntrain = min(len(all_origs_list), 4096)
+        ntrain = min(len(all_origs_list), self.NN2_settings.ntrain)
 
         X_train=[] # as list of volume data, flattened for each voxel
         
@@ -673,7 +683,16 @@ class cMultiAxisRotationsSegmentor():
         #Setup classifier
         print("Setup NN2 MLPClassifier")
         #self.NN2 = MLPClassifier(hidden_layer_sizes=(10,10), random_state=1, activation='tanh', verbose=True, learning_rate_init=0.001,solver='sgd', max_iter=1000)
-        self.NN2 = MLPClassifier(**self.NN2_settings.__dict__) #Unpack dict to become parameters
+        #self.NN2 = MLPClassifier(**self.NN2_settings.__dict__) #Unpack dict to become parameters
+        self.NN2 = MLPClassifier(
+            hidden_layer_sizes=self.NN2_settings.hidden_layer_sizes,
+            activation=self.NN2_settings.activation,
+            random_state=self.NN2_settings.random_state,
+            verbose=self.NN2_settings.verbose,
+            learning_rate_init=self.NN2_settings.learning_rate_init,
+            solver=self.NN2_settings.solver,
+            max_iter=self.NN2_settings.max_iter
+            )
 
         #Do the training here
         print(f"NN2 MLPClassifier fit with {len(X_train)} samples, (y_train {len(y_train)} samples)")
