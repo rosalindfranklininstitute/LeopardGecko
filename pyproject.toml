@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "leopardgecko"
+version = "0.0.1"
+authors = [{ name="Luis Perdigao" , email="luis.perdigao@rfi.ac.uk"}]
+description = "Tools to analyse and process results from predicted segmentation of microscopy volumetric tomography data"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {file="LICENSE.txt"}
+
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Testing",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: Apache Software License"
+]
+
+dependencies = [
+    "numpy>=1.18.0",
+    "h5py",
+    "pyyaml",
+    "dask",
+    "scipy",
+    "tqdm",
+    "matplotlib"
+]
+
+[project.optional-dependencies]
+    TORCH=["torch"]
+
+[project.urls]
+Repository = "https://github.com/rosalindfranklininstitute/LeopardGecko"
+
+[project.scripts]
