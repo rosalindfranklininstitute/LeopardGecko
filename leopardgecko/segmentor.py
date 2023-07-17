@@ -54,7 +54,11 @@ import pandas as pd
 class cMultiAxisRotationsSegmentor():
 
     def __init__(self, models_prefix="lg_segmentor_model_", temp_data_outdir=None, cuda_device=0):
-        model_NN1_fn = models_prefix+"NN1.pytorch"
+
+        import random
+        prefn = random.randint(0,10000)
+        model_NN1_fn = models_prefix+f"NN1_{prefn:04}.pytorch" #4 digits random to prevent clashes
+
         #model_NN2_fn = models_prefix+"NN2.pk"
         
         self.model_NN1_path = Path(cwd,model_NN1_fn)
@@ -419,9 +423,8 @@ class cMultiAxisRotationsSegmentor():
                 print(f"Cleaning up tempdir_pred: {tempdir_pred_path}")
                 tempdir_pred.cleanup()
 
-            #return d_prediction
+            return d_prediction
 
-        return d_prediction
 
 
     def NN1_train(self, traindata_list, trainlabels_list):
