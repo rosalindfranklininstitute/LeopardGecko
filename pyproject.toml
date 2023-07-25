@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "leopardgecko"
-version = "0.0.1"
+version = "0.0.2"
 authors = [{ name="Luis Perdigao" , email="luis.perdigao@rfi.ac.uk"}]
 description = "Tools to analyse and process results from predicted segmentation of microscopy volumetric tomography data"
 readme = "README.md"
