@@ -54,7 +54,7 @@ import pandas as pd
 class cMultiAxisRotationsSegmentor():
 
     def __init__(self, models_prefix="lg_segmentor_model_", temp_data_outdir=None, cuda_device=0):
-
+        logging.debug(f"cMultiAxisRotationsSegmentor __init__() with temp_data_outdir:{temp_data_outdir} , cuda_device:{cuda_device}")
         import random
         prefn = random.randint(0,10000)
         model_NN1_fn = models_prefix+f"NN1_{prefn:04}.pytorch" #4 digits random to prevent clashes
@@ -151,12 +151,12 @@ class cMultiAxisRotationsSegmentor():
             and (nn2_acc, nn2_dice) being the accuracy and dice result from NN1+NN2 combination
             
         """
-
+        logging.debug(f"train()")
         trainlabels0 = None
         traindata0=None
         #Check traindata is 3D or list
         if isinstance(traindata, np.ndarray) and isinstance(trainlabels, np.ndarray) :
-            print("traindata and trainlabels are ndarray")
+            logging.info("traindata and trainlabels are ndarray")
             if traindata.ndim!=3 or trainlabels.ndim!=3:
                 raise ValueError(f"traindata or trainlabels not 3D")
             else:
@@ -165,7 +165,7 @@ class cMultiAxisRotationsSegmentor():
                 trainlabels0=[trainlabels]
         else:
             if isinstance(traindata, list) and isinstance(trainlabels, list):
-                print("traindata and trainlabels are list")
+                logging.info("traindata and trainlabels are list")
                 if len(traindata)!=len(trainlabels):
                     raise ValueError("len(traindata)!=len(trainlabels) error. Must be the same number of items.")
                 else:
@@ -176,7 +176,7 @@ class cMultiAxisRotationsSegmentor():
 
         #How many sets?
         nsets=len(traindata0)
-        print(f"nsets:{nsets}")
+        logging.info(f"nsets:{nsets}")
 
         # logging.basicConfig(
         #     level=logging.INFO, format=cfg.LOGGING_FMT, datefmt=cfg.LOGGING_DATE_FMT
@@ -199,19 +199,20 @@ class cMultiAxisRotationsSegmentor():
         else:
             tempdir_pred_path=Path(self.temp_data_outdir)
         
-        print(f"tempdir_pred_path:{tempdir_pred_path}")
+        logging.info(f"tempdir_pred_path:{tempdir_pred_path}")
 
         #Predict multi-axis multi-rotations
         #Predictions are stored in h5 files in temporary folder
 
         all_pred_pd = self.NN1_predict(traindata0, tempdir_pred_path)
-        print("NN1_predict returned")
-        print(all_pred_pd)
+        logging.info("NN1_predict returned")
+        logging.info(all_pred_pd)
 
         #Take this oportunity to calculate metrics of each prediction labels if required
         nn1_acc_dice_s= []
         #pred_data_probs_filenames=all_pred_pd['pred_data_labels_filenames'].tolist() #note that all sets will be included in this list
         if get_metrics:
+            logging.info("Collecting NN1 metrics")
             #for i, label_fn0 in enumerate(pred_data_probs_filenames):
             for i, prow in all_pred_pd.iterrows():
                 pred_labels_fn = prow['pred_data_labels_filenames']
@@ -223,7 +224,7 @@ class cMultiAxisRotationsSegmentor():
                 a0 =  metrics.MetricScoreOfVols_Accuracy(data_i,trainlabels0[iset])
                 d0 = metrics.MetricScoreOfVols_Dice(data_i,trainlabels0[iset])
                 nn1_acc_dice_s.append( [a0,d0])
-                print(f"prediction iset:{iset}, ipred:{ipred}, filename: {pred_labels_fn}, accuracy:{a0}, dice:{d0}")
+                logging.info(f"prediction iset:{iset}, ipred:{ipred}, filename: {pred_labels_fn}, accuracy:{a0}, dice:{d0}")
 
         # ** NN2 training
 
@@ -232,7 +233,7 @@ class cMultiAxisRotationsSegmentor():
         #Build data object containing all predictions
 
         npredictions_per_set = int(np.max(all_pred_pd['pred_ipred'].to_numpy())+1)
-        print(f"npredictions_per_set:{npredictions_per_set}")
+        logging.info(f"npredictions_per_set:{npredictions_per_set}")
 
         # data0 = read_h5_to_np(pred_data_probs_filenames[0])
         # print(f"data0.shape:{data0.shape}")
@@ -254,6 +255,7 @@ class cMultiAxisRotationsSegmentor():
         
         data_all_np5d=None
 
+        logging.debug("Aggregating multiple sets onto a single volume data_all_np5d")
         # aggregate multiple sets for data
         for i,prow in all_pred_pd.iterrows():
 
@@ -262,7 +264,7 @@ class cMultiAxisRotationsSegmentor():
 
             if i==0:
                 #initialise
-                print(f"data0.shape:{data0.shape}")
+                logging.info(f"data0.shape:{data0.shape}")
                 all_shape0 = (
                     nsets,
                     npredictions_per_set,
@@ -297,10 +299,10 @@ class cMultiAxisRotationsSegmentor():
 
         #Check if the following objects are avaialble
         #self.volseg2pred #NN1 predictor (attention the NN1_predict() loads the model from file!!)
-        print(f"predict() data_in.shape:{data_in.shape}, data_in.dtype:{data_in.dtype}, use_dask:{use_dask}")
+        logging.debug(f"predict() data_in.shape:{data_in.shape}, data_in.dtype:{data_in.dtype}, use_dask:{use_dask}")
 
         if not self.model_NN1_path is None and not self.NN2 is None:
-            print("NN1 prediction")
+            logging.info("Setting up NN1 prediction")
 
             tempdir_pred=None
             if self.temp_data_outdir is None:
@@ -311,17 +313,17 @@ class cMultiAxisRotationsSegmentor():
 
             #pred_data_probs_filenames, _ = self.NN1_predict(data_in, tempdir_pred_path) #Get prediction probs, not labels
             all_pred_pd = self.NN1_predict(data_in, tempdir_pred_path) #Get prediction probs, not labels
-            print("NN1 prediction, complete.")
-            print("all_pred_pd")
-            print(all_pred_pd)
+            logging.info("NN1 prediction, complete.")
+            logging.info("all_pred_pd")
+            logging.info(all_pred_pd)
             
-            print("Building large object containing all predictions.")
+            logging.info("Building large object containing all predictions.")
             #Build data object containing all predictions
             #Try using numpy. If memory error use dask instead
             bcomplete=False
             while not bcomplete:
                 if not use_dask:
-                    print("use_dask=False. Will try to aggregate data to a numpy.ndarray")
+                    logging.info(("use_dask=False. Will try to aggregate data to a numpy.ndarray")
                     try:
                         data_all=None
                         # aggregate multiple sets for data
@@ -332,9 +334,9 @@ class cMultiAxisRotationsSegmentor():
 
                             if i==0:
                                 #initialise
-                                print(f"data0.shape:{data0.shape}")
+                                logging.info((f"data0.shape:{data0.shape}")
                                 npredictions = int(np.max(all_pred_pd['pred_ipred'].to_numpy())+1)
-                                print(f"npredictions:{npredictions}")
+                                logging.info((f"npredictions:{npredictions}")
                                 
                                 all_shape = (
                                     npredictions,
@@ -358,11 +360,11 @@ class cMultiAxisRotationsSegmentor():
 
                         bcomplete=True #Flag completion to exit while loop
                     except Exception as exc0:
-                        print("Allocation using numpy failed. Failsafe will use dask.")
-                        print("Exception type:",type(exc0))
+                        logging.info("Allocation using numpy failed. Failsafe will use dask.")
+                        logging.info("Exception type:",type(exc0))
                         use_dask=True
                 else:
-                    print("use_dask=True. Will aggregate data to a dask.array object")
+                    logging.info("use_dask=True. Will aggregate data to a dask.array object")
                     try:
                         # data0 = read_h5_to_da(pred_data_probs_filenames[0]) 
                         # all_shape = ( len(pred_data_probs_filenames), *data0.shape )
@@ -390,9 +392,9 @@ class cMultiAxisRotationsSegmentor():
 
                             if i==0:
                                 #initialise
-                                print(f"i:{i}, data0.shape:{data0.shape}")
+                                logging.info(f"i:{i}, data0.shape:{data0.shape}")
                                 npredictions = int(np.max(all_pred_pd['pred_ipred'].to_numpy())+1)
-                                print(f"npredictions:{npredictions}")
+                                logging.info(f"npredictions:{npredictions}")
                                 
                                 chunks_shape = (npredictions, *data0.chunksize )
                                 #in case of 12 predictions and 3 labels, the chunks will be (12,128,128,128,3) size
@@ -406,21 +408,21 @@ class cMultiAxisRotationsSegmentor():
 
                         bcomplete=True
                     except Exception as exc0:
-                        print("Allocation failed with dask. Returning None")
-                        print("Exception type:",type(exc0))
-                        print("Exception string:", str(exc0))
+                        logging.info("Allocation failed with dask. Returning None")
+                        logging.info("Exception type:",type(exc0))
+                        logging.info("Exception string:", str(exc0))
                         data_all=None
                         bcomplete=True
 
             d_prediction=None #Default return value
             if not data_all is None:
-                print("NN2 prediction")
+                logging.info("Setting up NN2 prediction")
                 d_prediction= self.NN2_predict( data_all)
                 
-                print("NN2 prediction complete.")
+                logging.info("NN2 prediction complete.")
 
             if not tempdir_pred is None:
-                print(f"Cleaning up tempdir_pred: {tempdir_pred_path}")
+                logging.info(f"Cleaning up tempdir_pred: {tempdir_pred_path}")
                 tempdir_pred.cleanup()
 
             return d_prediction
@@ -458,11 +460,11 @@ class cMultiAxisRotationsSegmentor():
 
         # tempdir_data = tempfile.TemporaryDirectory()
         # tempdir_data_path=Path(tempdir_data.name)
-        print(f"tempdir_data_path:{tempdir_data_path}")
+        logging.info(f"tempdir_data_path:{tempdir_data_path}")
 
         # tempdir_seg = tempfile.TemporaryDirectory()
         # tempdir_seg_path = Path(tempdir_seg.name)
-        print(f"tempdir_seg_path:{tempdir_seg_path}")
+        logging.info(f"tempdir_seg_path:{tempdir_seg_path}")
 
         # Keep track of the number of labels
         max_label_no = 0
@@ -502,7 +504,7 @@ class cMultiAxisRotationsSegmentor():
         slicer.clean_up_slices()
 
         if not tempdir_data is None:
-            print("tempdir_data and tempdir_seg cleanup.")
+            logging.info("tempdir_data and tempdir_seg cleanup.")
             tempdir_data.cleanup()
             tempdir_seg.cleanup()
 
@@ -524,6 +526,13 @@ class cMultiAxisRotationsSegmentor():
             filenames of probabilities and labels,
             and respective set, rotation, plane, and ipred
 
+            Columns are
+                'pred_data_probs_filenames'
+                'pred_data_labels_filenames'
+                'pred_sets'
+                'pred_planes'
+                'pred_rots'
+                'pred_ipred'
         """
 
         #Load volume segmantics model from file to class instance
@@ -531,7 +540,7 @@ class cMultiAxisRotationsSegmentor():
         #Using this VolSeg2dPredictor will not clip data
         #Also moved this functionality to later
 
-        print("NN1_predict()")
+        logging.debug("NN1_predict()")
         #Internal function
         def _save_pred_data(data, count,axis, rot):
             # Saves predicted data to h5 file in tempdir and return file path in case it is needed
@@ -553,10 +562,10 @@ class cMultiAxisRotationsSegmentor():
         pred_rots=[]
         pred_ipred=[]
 
-        print("number of data sets to predict:", len(data_to_predict_l))
+        logging.info("number of data sets to predict:", len(data_to_predict_l))
         
         for i, data_to_predict0 in enumerate(data_to_predict_l):
-
+            logging.info(f"Data to predict index:{i}")
             data_vol1 = np.array(data_to_predict0) #Copies
 
             #Check this is working
@@ -642,6 +651,8 @@ class cMultiAxisRotationsSegmentor():
 
             del(data_vol)
 
+        logging.debug("Generating a DataFrame object with information about predictions")
+
         all_pred_pd = pd.DataFrame({
             'pred_data_probs_filenames': pred_data_probs_filenames,
             'pred_data_labels_filenames': pred_data_labels_filenames,
@@ -656,7 +667,7 @@ class cMultiAxisRotationsSegmentor():
 
 
     def NN2_train(self, train_data_all_probs_5d, trainlabels_list, get_metrics=True):
-        print("NN2 train")
+        logging.debug("NN2 train()")
 
         #Assumes train_data_all_probs_list is 5d
         # and that trainlabels_list is a list of 3d volumes
@@ -665,6 +676,7 @@ class cMultiAxisRotationsSegmentor():
 
         nsets= len(trainlabels_list)
 
+        logging.debug("Getting several points to train NN2")
         #Get several points to train NN2
         x_origs = np.arange(0, train_data_all_probs_5d.shape[3],5)
         y_origs = np.arange(0,train_data_all_probs_5d.shape[2],5)
@@ -695,7 +707,7 @@ class cMultiAxisRotationsSegmentor():
             y_train.append(label_vol_label)
 
         #Setup classifier
-        print("Setup NN2 MLPClassifier")
+        logging.info("Setup NN2 MLPClassifier")
         #self.NN2 = MLPClassifier(hidden_layer_sizes=(10,10), random_state=1, activation='tanh', verbose=True, learning_rate_init=0.001,solver='sgd', max_iter=1000)
         #self.NN2 = MLPClassifier(**self.NN2_settings.__dict__) #Unpack dict to become parameters
         self.NN2 = MLPClassifier(
@@ -709,15 +721,15 @@ class cMultiAxisRotationsSegmentor():
             )
 
         #Do the training here
-        print(f"NN2 MLPClassifier fit with {len(X_train)} samples, (y_train {len(y_train)} samples)")
+        logging.info(f"NN2 MLPClassifier fit with {len(X_train)} samples, (y_train {len(y_train)} samples)")
         self.NN2.fit(X_train,y_train)
 
-        print(f"NN2 train score:{self.NN2.score(X_train,y_train)}")
+        logging.info(f"NN2 train score:{self.NN2.score(X_train,y_train)}")
 
         nn2_acc=[]
         nn2_dice=[]
         if get_metrics:
-            print("Preparing to predict the whole training volume")
+            logging.info("Preparing to predict the whole training volume")
 
             for i in range(nsets):
                 d_prediction= self.NN2_predict( train_data_all_probs_5d[i,:,:,:,:,:])
@@ -726,7 +738,7 @@ class cMultiAxisRotationsSegmentor():
                 nn2_acc0= metrics.MetricScoreOfVols_Accuracy(trainlabels_list[i],d_prediction)
                 nn2_dice0= metrics.MetricScoreOfVols_Dice(trainlabels_list[i],d_prediction, useBckgnd=False)
 
-                print(f"set {i}, NN2 acc:{nn2_acc0}, dice:{nn2_dice0}")
+                logging.inof((f"set {i}, NN2 acc:{nn2_acc0}, dice:{nn2_dice0}")
                 nn2_acc.append(nn2_acc0)
                 nn2_dice.append(nn2_dice0)
         
@@ -734,10 +746,10 @@ class cMultiAxisRotationsSegmentor():
 
     def NN2_predict(self, data_all_probs):
         
-        print("NN2_predict()")
+        logging.debug("NN2_predict()")
 
         if isinstance(data_all_probs, np.ndarray):
-            print("Data type is numpy.ndarray")
+            logging.info("Data type is numpy.ndarray")
 
             #Need to flatten along the npred and nclasses
             data_2MLP_t= np.transpose(data_all_probs,(1,2,3,0,4))
@@ -756,7 +768,7 @@ class cMultiAxisRotationsSegmentor():
             return mlppred_3D
         
         elif isinstance(data_all_probs, da.core.Array):
-            print("Data type is dask.core.Array")
+            logging.info("Data type is dask.core.Array")
             #Use dask reduction functionality to do the predictions
 
             def chunkf(x,axis, keepdims, computing_meta=False):
@@ -797,9 +809,9 @@ class cMultiAxisRotationsSegmentor():
                             keepdims=False,
                             axis=(0,4)) #It appeears that his axis parameter is simply passed to chnkf and aggf and that's it.
 
-            print("Starting dask computation")
+            logging.info("Starting dask computation")
             b_comp=b.compute()
-            print(f"Completed. res shape:{b_comp.shape}")
+            logging.info(f"Completed. res shape:{b_comp.shape}")
 
             return b_comp
 
@@ -816,6 +828,8 @@ class cMultiAxisRotationsSegmentor():
         #Generate files in temporary storage
         #tempdir_model = tempfile.TemporaryDirectory()
         #tempdir_model_path=Path(tempdir_model)
+
+        logging.debug("save_model()")
 
         import io
         import joblib
@@ -854,6 +868,7 @@ class cMultiAxisRotationsSegmentor():
 
     def load_model(self, filename):
         #import io
+        logging.debug("load_model()")
         import joblib
         from zipfile import ZipFile
 
