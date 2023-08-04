@@ -112,7 +112,7 @@ def MetricScoreOfVols_Dice(vol0, vol1, useBckgnd=False, use_dask=None):
     shape1 = vol0.shape
     shape2 = vol1.shape
     if not np.array_equal( np.array(shape1), np.array(shape2)):
-        logging.info("Arrays have different shapes. Exiting with None")
+        logging.error("Arrays have different shapes. Exiting with None")
         return None
 
     #Check both volumes dtype is int
