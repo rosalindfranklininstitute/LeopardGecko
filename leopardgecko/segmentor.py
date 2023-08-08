@@ -418,7 +418,7 @@ class cMultiAxisRotationsSegmentor():
             tempdir_seg.cleanup()
 
 
-    def NN1_predict(self,data_to_predict, pred_folder_out):
+    def NN1_predict(self,data_to_predict, pred_folder_out, volsegm_pred_path=None):
         """
         
         Does the multi-axis multi-rotation predictions
@@ -429,6 +429,7 @@ class cMultiAxisRotationsSegmentor():
         Params:
             data_to_predict: a ndarray or a list of ndarrays with the 3D data to rund predictions from
             pred_folder_out: a string with the location of where to drop results in h5 file format
+            volsegm_pred_path: (optional) if a path is given, merge all volumes using volume segmantics and save
 
         Returns:
             a pandas Dataframe with results of predictions in
@@ -573,6 +574,51 @@ class cMultiAxisRotationsSegmentor():
             'pred_ipred':pred_ipred
         })
         
+        #This code bwlow is untested
+        #Run standard volume segmantics merging of predicted volumes and saves as h5 file
+        if not volsegm_pred_path is None:
+            logging.info(f"volsegm_pred_path provided:{volsegm_pred_path} so will merge to max probabilities")
+            #This is the method used by volume segmatics to merge results
+            def _squeeze_merge_vols_by_max_prob(self, probs2, labels2):
+                logging.debug("_merge_vols_by_max_prob()")
+                max_prob_idx = np.argmax(probs2, axis=0)
+                max_prob_idx = max_prob_idx[np.newaxis, :, :, :]
+                probs2[0] = np.squeeze(
+                    np.take_along_axis(probs2, max_prob_idx, axis=0)
+                )
+                labels2[0] = np.squeeze(
+                    np.take_along_axis(labels2, max_prob_idx, axis=0)
+                )
+                return
+
+
+            labels2 = None
+            probs2 = None
+            #Load labels data one by one and merge
+            for i in tqdm.trange(len(pred_data_labels_filenames)):
+                fn_l0=pred_data_labels_filenames[i]
+                fn_p0=pred_data_probs_filenames[i]
+
+                labels0=read_h5_to_np(fn_l0)
+                probs0=read_h5_to_np(fn_p0)
+
+                if labels2 is None:
+                    logging.debug("First labels and probs file initializes")
+                    shape_tup = labels0.shape
+                    labels2 = np.empty((2, *shape_tup), dtype=np.uint8)
+                    probs2 = np.empty((2, *shape_tup), dtype=np.float16)
+                    labels2[0]=labels0
+                    probs2[0]=probs0
+                else:
+                    labels2[1]=labels0
+                    probs0[1]=probs0
+
+                    _squeeze_merge_vols_by_max_prob(probs2,labels2)
+            #Upon completion, save labels
+
+            save_data_to_hdf5(labels2[0],volsegm_pred_path)
+                    
+
         #return pred_data_probs_filenames, pred_data_labels_filenames
         return all_pred_pd
 
@@ -922,6 +968,37 @@ class cMultiAxisRotationsSegmentor():
                     bcomplete=True
         
         return data_all
+    
+    def NN1_predict_standard(self,data_vol, pred_file_h5_out):
+        """
+        Does the volume segmantics predictions using its 'standard' way, with a single volume output
+        
+        Params:
+        data_vol: path to file or ndarray. Single, not a list
+        pred_file_h5_out: a string with the location of where to drop results in h5 file format *.h5
+
+        
+        """
+
+        logging.debug("NN1_predict_standard()")
+
+        if self.model_NN1_path is None:
+            logging.error("self.model_NN1_path is None. Exiting")
+            return None
+
+        logging.info(f"pred_file_h5_out: {pred_file_h5_out}")
+
+        volseg2pred_m = VolSeg2DPredictionManager(
+                model_file_path= self.model_NN1_path,
+                data_vol=data_vol,
+                settings=self.NN1_pred_settings,
+                use_dask=True)
+        
+        pred_file_h5_out_path = Path(pred_file_h5_out)
+        volseg2pred_m.predict_volume_to_path(pred_file_h5_out_path)
+
+        logging.info(f"Prediction completed, saved to file: {pred_file_h5_out}")
+
 
     @staticmethod
     def copy_from(lgsegm0):
