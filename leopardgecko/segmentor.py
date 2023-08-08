@@ -75,6 +75,8 @@ class cMultiAxisRotationsSegmentor():
 
         self.all_nn1_pred_pd=None
 
+        self.NN1_volsegm_pred_path=None
+
     def _init_settings(self):
         #Initialise internal settings for the neural networks
         NN1trainsettings0 = {'data_im_dirname': 'data',
@@ -104,7 +106,8 @@ class cMultiAxisRotationsSegmentor():
             'plot_lr_graph': False,
             'model': {'type': 'U_Net',
             'encoder_name': 'resnet34',
-            'encoder_weights': 'imagenet'}}
+            'encoder_weights': 'imagenet'},
+            }
 
         self.NN1_train_settings = SimpleNamespace(**NN1trainsettings0)
 
@@ -418,7 +421,7 @@ class cMultiAxisRotationsSegmentor():
             tempdir_seg.cleanup()
 
 
-    def NN1_predict(self,data_to_predict, pred_folder_out, volsegm_pred_path=None):
+    def NN1_predict(self,data_to_predict, pred_folder_out):
         """
         
         Does the multi-axis multi-rotation predictions
@@ -429,7 +432,7 @@ class cMultiAxisRotationsSegmentor():
         Params:
             data_to_predict: a ndarray or a list of ndarrays with the 3D data to rund predictions from
             pred_folder_out: a string with the location of where to drop results in h5 file format
-            volsegm_pred_path: (optional) if a path is given, merge all volumes using volume segmantics and save
+
 
         Returns:
             a pandas Dataframe with results of predictions in
@@ -576,8 +579,8 @@ class cMultiAxisRotationsSegmentor():
         
         #This code bwlow is untested
         #Run standard volume segmantics merging of predicted volumes and saves as h5 file
-        if not volsegm_pred_path is None:
-            logging.info(f"volsegm_pred_path provided:{volsegm_pred_path} so will merge to max probabilities")
+        if not self.NN1_volsegm_pred_path is None:
+            logging.info(f"volsegm_pred_path provided:{self.NN1_volsegm_pred_path} so will merge to max probabilities")
             #This is the method used by volume segmatics to merge results
             def _squeeze_merge_vols_by_max_prob(self, probs2, labels2):
                 logging.debug("_merge_vols_by_max_prob()")
@@ -614,9 +617,9 @@ class cMultiAxisRotationsSegmentor():
                     probs0[1]=probs0
 
                     _squeeze_merge_vols_by_max_prob(probs2,labels2)
+            
             #Upon completion, save labels
-
-            save_data_to_hdf5(labels2[0],volsegm_pred_path)
+            save_data_to_hdf5(labels2[0],self.NN1_volsegm_pred_path)
                     
 
         #return pred_data_probs_filenames, pred_data_labels_filenames
