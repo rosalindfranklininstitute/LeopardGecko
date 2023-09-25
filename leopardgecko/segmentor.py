@@ -61,8 +61,12 @@ class cMultiAxisRotationsSegmentor():
 
         #model_NN2_fn = models_prefix+"NN2.pk"
         
-        self.model_NN1_path = Path(cwd,model_NN1_fn)
+        #self.model_NN1_path = Path(cwd,model_NN1_fn)
         #self.model_NN2_path = Path(cwd, model_NN2_fn)
+
+        #stops creating pytorch model in current folder
+        self._pytorch_model_tempdir= tempfile.TemporaryDirectory()
+        self.model_NN1_path = Path(self._pytorch_model_tempdir.name,model_NN1_fn)
         
         self.chunkwidth = 64
         
