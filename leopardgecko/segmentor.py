@@ -142,7 +142,7 @@ class cMultiAxisRotationsSegmentor():
     def set_cuda_device(self,n):
         self.cuda_device=n
         self.NN1_train_settings.cuda_device=n
-        self.NN1predsettings0.cuda_device=n
+        self.NN1_pred_settings.cuda_device=n
 
     
     def train(self, traindata, trainlabels, get_metrics=True):
@@ -197,10 +197,10 @@ class cMultiAxisRotationsSegmentor():
         # and collects data files
         
         # Setup temporary folders to store predictions
-        tempdir_pred=None
+        self.tempdir_pred=None
         if self.temp_data_outdir is None:
-            tempdir_pred= tempfile.TemporaryDirectory()
-            tempdir_pred_path = Path(tempdir_pred.name)
+            self.tempdir_pred= tempfile.TemporaryDirectory()
+            tempdir_pred_path = Path(self.tempdir_pred.name)
         else:
             tempdir_pred_path=Path(self.temp_data_outdir)
         
@@ -209,17 +209,16 @@ class cMultiAxisRotationsSegmentor():
         #Predict multi-axis multi-rotations
         #Predictions are stored in h5 files in temporary folder
 
-        all_pred_pd = self.NN1_predict(traindata0, tempdir_pred_path)
+        self.all_nn1_pred_pd = self.NN1_predict(traindata0, tempdir_pred_path) #note that 
         logging.info("NN1_predict returned")
-        logging.info(all_pred_pd)
+        logging.info(self.all_nn1_pred_pd)
 
         #Take this oportunity to calculate metrics of each prediction labels if required
         nn1_acc_dice_s= []
         #pred_data_probs_filenames=all_pred_pd['pred_data_labels_filenames'].tolist() #note that all sets will be included in this list
         if get_metrics:
             logging.info("Collecting NN1 metrics")
-            #for i, label_fn0 in enumerate(pred_data_probs_filenames):
-            for i, prow in all_pred_pd.iterrows():
+            for i, prow in self.all_nn1_pred_pd.iterrows():
                 pred_labels_fn = prow['pred_data_labels_filenames']
                 iset = prow['pred_sets']
                 ipred = prow['pred_ipred']
@@ -231,13 +230,20 @@ class cMultiAxisRotationsSegmentor():
                 nn1_acc_dice_s.append( [a0,d0])
                 logging.info(f"prediction iset:{iset}, ipred:{ipred}, filename: {pred_labels_fn}, accuracy:{a0}, dice:{d0}")
 
+            #add metrics to pandas dataframe with results
+            acc_list0 = [ ad0[0] for ad0 in nn1_acc_dice_s]
+            self.all_nn1_pred_pd["accuracy"]= acc_list0
+
+            dice_list0 = [ ad0[1][0] for ad0 in nn1_acc_dice_s]
+            self.all_nn1_pred_pd["dice"]= dice_list0
+
         # ** NN2 training
 
         #Need to train next model by running predictions and optimize MLP
         #Use multi-predicted data and labels to train NN2
         #Build data object containing all predictions
 
-        npredictions_per_set = int(np.max(all_pred_pd['pred_ipred'].to_numpy())+1)
+        npredictions_per_set = int(np.max(self.all_nn1_pred_pd['pred_ipred'].to_numpy())+1)
         logging.info(f"npredictions_per_set:{npredictions_per_set}")
 
         # data0 = read_h5_to_np(pred_data_probs_filenames[0])
@@ -262,7 +268,7 @@ class cMultiAxisRotationsSegmentor():
 
         logging.debug("Aggregating multiple sets onto a single volume data_all_np5d")
         # aggregate multiple sets for data
-        for i,prow in all_pred_pd.iterrows():
+        for i,prow in self.all_nn1_pred_pd.iterrows():
 
             prob_filename = prow['pred_data_probs_filenames']
             data0 = read_h5_to_np(prob_filename)
@@ -289,8 +295,9 @@ class cMultiAxisRotationsSegmentor():
         #Train NN2 from multi-axis multi-angle predictions against labels (gnd truth)
         nn2_acc, nn2_dice = self.NN2_train(data_all_np5d, trainlabels0, get_metrics=get_metrics)
 
-        if not tempdir_pred is None:
-            tempdir_pred.cleanup()
+        #Preserve for debugging
+        # if not tempdir_pred is None:
+        #     tempdir_pred.cleanup()
 
         return nn1_acc_dice_s, (nn2_acc, nn2_dice)
     
@@ -309,10 +316,10 @@ class cMultiAxisRotationsSegmentor():
         if not self.model_NN1_path is None and not self.NN2 is None:
             logging.info("Setting up NN1 prediction")
 
-            tempdir_pred=None
+            self.tempdir_pred=None
             if self.temp_data_outdir is None:
-                tempdir_pred= tempfile.TemporaryDirectory()
-                tempdir_pred_path = Path(tempdir_pred.name)
+                self.tempdir_pred= tempfile.TemporaryDirectory()
+                tempdir_pred_path = Path(self.tempdir_pred.name)
             else:
                 tempdir_pred_path=Path(self.temp_data_outdir)
 
@@ -334,9 +341,9 @@ class cMultiAxisRotationsSegmentor():
                 
                 logging.info("NN2 prediction complete.")
 
-            if not tempdir_pred is None:
-                logging.info(f"Cleaning up tempdir_pred: {tempdir_pred_path}")
-                tempdir_pred.cleanup()
+            # if not tempdir_pred is None:
+            #     logging.info(f"Cleaning up tempdir_pred: {tempdir_pred_path}")
+            #     tempdir_pred.cleanup()
 
             return d_prediction
 
@@ -476,6 +483,7 @@ class cMultiAxisRotationsSegmentor():
         pred_planes=[]
         pred_rots=[]
         pred_ipred=[]
+        pred_shapes=[]
 
         logging.info(f"number of data sets to predict: {len(data_to_predict_l)}")
         
@@ -495,19 +503,19 @@ class cMultiAxisRotationsSegmentor():
             itag=0
             for krot in range(0, 4):
                 rot_angle_degrees = krot * 90
-                logging.info(f"Volume rotated by {rot_angle_degrees} degrees")
-
-                data_vol = np.rot90(np.array(data_vol0),krot) #rotate
+                logging.info(f"Volume to be rotated by {rot_angle_degrees} degrees")
 
                 #Predict 3 axis
                 #YX
+                planeYX=(1,2)
                 logging.info("Predicting YX slices:")
+                data_vol = np.rot90(np.array(data_vol0),krot, axes=planeYX) #rotate
                 #returns (labels,probabilities)
                 res = volseg2pred_m.predictor._predict_single_axis_all_probs(
                     data_vol,
                     axis=Axis.Z
                 )
-                pred_probs = np.rot90(res[1], -krot) #invert rotation before saving
+                pred_probs = np.rot90(res[1], -krot, axes=planeYX) #invert rotation before saving
                 #Saves prediction labels
                 #Sets nlabels from last dimension. Assumes last dimension is number of labels
                 #Used to chunk data when saving
@@ -515,7 +523,7 @@ class cMultiAxisRotationsSegmentor():
                 fn = _save_pred_data(pred_probs, i, "YX", rot_angle_degrees)
                 pred_data_probs_filenames.append(fn)
 
-                pred_labels = np.rot90(res[0], -krot)
+                pred_labels = np.rot90(res[0], -krot, axes=planeYX)
                 fn = _save_pred_data(pred_labels, i, "YX_labels", rot_angle_degrees)
                 pred_data_labels_filenames.append(fn)
 
@@ -523,19 +531,22 @@ class cMultiAxisRotationsSegmentor():
                 pred_planes.append("YX")
                 pred_rots.append(rot_angle_degrees)
                 pred_ipred.append(itag)
+                pred_shapes.append(pred_labels.shape)
                 itag+=1
 
                 
                 #ZX
                 logging.info("Predicting ZX slices:")
+                planeZX=(0,2)
+                data_vol = np.rot90(np.array(data_vol0),krot, axes=planeZX) #rotate
                 res = volseg2pred_m.predictor._predict_single_axis_all_probs(
                     data_vol, axis=Axis.Y
                 )
-                pred_probs = np.rot90(res[1], -krot) #invert rotation before saving
+                pred_probs = np.rot90(res[1], -krot, axes=planeZX) #invert rotation before saving
                 fn = _save_pred_data(pred_probs, i, "ZX", rot_angle_degrees)
                 pred_data_probs_filenames.append(fn)
 
-                pred_labels = np.rot90(res[0], -krot)
+                pred_labels = np.rot90(res[0], -krot, axes=planeZX)
                 fn = _save_pred_data(pred_labels, i, "ZX_labels", rot_angle_degrees)
                 pred_data_labels_filenames.append(fn)
 
@@ -543,18 +554,21 @@ class cMultiAxisRotationsSegmentor():
                 pred_planes.append("ZX")
                 pred_rots.append(rot_angle_degrees)
                 pred_ipred.append(itag)
+                pred_shapes.append(pred_labels.shape)
                 itag+=1
 
                 #ZY
                 logging.info("Predicting ZY slices:")
+                planeZY=(0,1)
+                data_vol = np.rot90(np.array(data_vol0),krot, axes=planeZY) #rotate
                 res= volseg2pred_m.predictor._predict_single_axis_all_probs(
                     data_vol, axis=Axis.X
                 )
-                pred_probs = np.rot90(res[1], -krot) #invert rotation before saving
+                pred_probs = np.rot90(res[1], -krot, axes=planeZY) #invert rotation before saving
                 fn = _save_pred_data(pred_probs, i, "ZY", rot_angle_degrees)
                 pred_data_probs_filenames.append(fn)
 
-                pred_labels = np.rot90(res[0], -krot)
+                pred_labels = np.rot90(res[0], -krot, axes=planeZY)
                 fn = _save_pred_data(pred_labels, i, "ZY_labels", rot_angle_degrees)
                 pred_data_labels_filenames.append(fn)
 
@@ -562,6 +576,7 @@ class cMultiAxisRotationsSegmentor():
                 pred_planes.append("ZY")
                 pred_rots.append(rot_angle_degrees)
                 pred_ipred.append(itag)
+                pred_shapes.append(pred_labels.shape)
                 itag+=1
 
             del(data_vol)
@@ -574,7 +589,8 @@ class cMultiAxisRotationsSegmentor():
             'pred_sets':pred_sets,
             'pred_planes':pred_planes,
             'pred_rots':pred_rots,
-            'pred_ipred':pred_ipred
+            'pred_ipred':pred_ipred,
+            'pred_shapes': pred_shapes,
         })
         
         #This code bwlow is untested
@@ -637,39 +653,66 @@ class cMultiAxisRotationsSegmentor():
         nsets= len(trainlabels_list)
 
         logging.debug("Getting several points to train NN2")
-        #Get several points to train NN2
-        x_origs = np.arange(0, train_data_all_probs_5d.shape[3],5)
-        y_origs = np.arange(0,train_data_all_probs_5d.shape[2],5)
-        z_origs = np.arange(0,train_data_all_probs_5d.shape[1],5)
-        x_mg, y_mg, z_mg = np.meshgrid(x_origs,y_origs, z_origs)
-        all_origs_list = np.transpose(np.vstack( (z_mg.flatten() , y_mg.flatten() , x_mg.flatten() ) ) ).tolist()
+        # #This is probably not the best way to get a random points
+        # #Get several points to train NN2
+        # x_origs = np.arange(0, train_data_all_probs_5d.shape[3],5)
+        # y_origs = np.arange(0,train_data_all_probs_5d.shape[2],5)
+        # z_origs = np.arange(0,train_data_all_probs_5d.shape[1],5)
+        # x_mg, y_mg, z_mg = np.meshgrid(x_origs,y_origs, z_origs)
+        # all_origs_list = np.transpose(np.vstack( (z_mg.flatten() , y_mg.flatten() , x_mg.flatten() ) ) ).tolist()
 
-        random.shuffle(all_origs_list)
-        #ntrain = min(len(all_origs_list), 4096)
-        ntrain = min(len(all_origs_list), self.NN2_settings.ntrain)
+        # random.shuffle(all_origs_list)
+        # #ntrain = min(len(all_origs_list), 4096)
+        # ntrain = min(len(all_origs_list), self.NN2_settings.ntrain)
 
-        X_train=[] # as list of volume data, flattened for each voxel
+        # X_train=[] # as list of volume data, flattened for each voxel
         
-        iset_randoms = np.random.default_rng().integers(0,nsets,ntrain)
+        # iset_randoms = np.random.default_rng().integers(0,nsets,ntrain)
 
+        # for i in tqdm.trange(ntrain):
+        #     el = all_origs_list[i]
+        #     z,y,x = el
+        #     data_vol = train_data_all_probs_5d[iset_randoms[i],:,z,y,x,:]
+        #     data_vol_flat = data_vol.flatten()
+        #     X_train.append(data_vol_flat)
+
+        # y_train=[] # labels
+        # for i in tqdm.trange(ntrain):
+        #     el = all_origs_list[i]
+        #     z,y,x = el
+        #     label_vol_label = trainlabels_list[iset_randoms[i]][z,y,x]
+        #     y_train.append(label_vol_label)
+
+        ntrain=self.NN2_settings.ntrain
+
+        iset_rnd = np.random.randint(0,nsets,ntrain)
+        z_orig_rnd = np.random.randint(0,train_data_all_probs_5d.shape[2],ntrain)
+        y_orig_rnd = np.random.randint(0,train_data_all_probs_5d.shape[3],ntrain)
+        x_orig_rnd = np.random.randint(0,train_data_all_probs_5d.shape[4],ntrain)
+        
+        all_origs_list=np.column_stack( (iset_rnd,z_orig_rnd,y_orig_rnd,x_orig_rnd ))
+
+        #Could probably check for duplicates, but I will sckip that part
+        #Collect voxels data
+        X_train=[]
+        Y_train=[] # labels
         for i in tqdm.trange(ntrain):
-            el = all_origs_list[i]
-            z,y,x = el
-            data_vol = train_data_all_probs_5d[iset_randoms[i],:,z,y,x,:]
+            el = all_origs_list[i,:]
+            iset,z,y,x = el
+            data_vol = train_data_all_probs_5d[iset,:,z,y,x,:]
             data_vol_flat = data_vol.flatten()
             X_train.append(data_vol_flat)
 
-        y_train=[] # labels
-        for i in tqdm.trange(ntrain):
-            el = all_origs_list[i]
-            z,y,x = el
-            label_vol_label = trainlabels_list[iset_randoms[i]][z,y,x]
-            y_train.append(label_vol_label)
+            label_vol_label = trainlabels_list[iset][z,y,x]
+            Y_train.append(label_vol_label)
+
+        logging.debug(f"NN2 len(X_train):{len(X_train)} , len(Y_train):{len(Y_train)}")
 
         #Setup classifier
         logging.info("Setup NN2 MLPClassifier")
         #self.NN2 = MLPClassifier(hidden_layer_sizes=(10,10), random_state=1, activation='tanh', verbose=True, learning_rate_init=0.001,solver='sgd', max_iter=1000)
         #self.NN2 = MLPClassifier(**self.NN2_settings.__dict__) #Unpack dict to become parameters
+
         self.NN2 = MLPClassifier(
             hidden_layer_sizes=self.NN2_settings.hidden_layer_sizes,
             activation=self.NN2_settings.activation,
@@ -680,11 +723,22 @@ class cMultiAxisRotationsSegmentor():
             max_iter=self.NN2_settings.max_iter
             )
 
+        # self.NN2 = MLPClassifier(
+        #     hidden_layer_sizes=self.NN2_settings.hidden_layer_sizes,
+        #     activation=self.NN2_settings.activation,
+        #     random_state=self.NN2_settings.random_state,
+        #     verbose=self.NN2_settings.verbose,
+        #     learning_rate_init=self.NN2_settings.learning_rate_init,
+        #     solver=self.NN2_settings.solver,
+        #     max_iter=self.NN2_settings.max_iter,
+        #     loss= self.dice_loss_np #chatgpt advise, but was wrong, sklearn MLP does not support costum loss functions
+        #     )
+        
         #Do the training here
-        logging.info(f"NN2 MLPClassifier fit with {len(X_train)} samples, (y_train {len(y_train)} samples)")
-        self.NN2.fit(X_train,y_train)
+        logging.info(f"NN2 MLPClassifier fit with {len(X_train)} samples, (y_train {len(Y_train)} samples)")
+        self.NN2.fit(X_train,Y_train)
 
-        logging.info(f"NN2 train score:{self.NN2.score(X_train,y_train)}")
+        logging.info(f"NN2 train score:{self.NN2.score(X_train,Y_train)}")
 
         nn2_acc=[]
         nn2_dice=[]
@@ -1036,4 +1090,10 @@ class cMultiAxisRotationsSegmentor():
         lgsegm1.NN2= copy.deepcopy(lgsegm0)
 
         return lgsegm1
+
+
+    def dice_loss_np(y_true, y_pred):
+        intersection = np.sum(y_true * y_pred)
+        union = np.sum(y_true) + np.sum(y_pred)
+        return 1.0 - (2.0 * intersection + 1.0) / (union + 1.0)
 
