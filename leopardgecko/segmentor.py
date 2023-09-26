@@ -879,7 +879,7 @@ class cMultiAxisRotationsSegmentor():
         from zipfile import ZipFile
 
         with ZipFile(filename, 'w') as zipobj:
-            zipobj.write(self.model_NN1_path.name, arcname="NN1_model.pytorch")
+            zipobj.write(str(self.model_NN1_path), arcname="NN1_model.pytorch")
             zipobj.writestr("NN1_train_settings.joblib",nn1_train_settings_bytesio.getvalue())
             zipobj.writestr("NN1_pred_settings.joblib", nn1_pred_settings_bytesio.getvalue())
             zipobj.writestr("NN2_model.joblib", nn2_model_bytesio.getvalue())

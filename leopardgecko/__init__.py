@@ -44,6 +44,8 @@ from . import ScoreData, Pcrit, metrics, AvgPool
 from . import hvectstatstools
 from . import hvect_plot_2class, hvect_plot_3class
 
+__version__ = "0.0.2"
+
 def lizzie():
     '''
     No code is proper without an Easter Egg

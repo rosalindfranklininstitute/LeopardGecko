@@ -4,12 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "leopardgecko"
-version = "0.0.2"
+
+#version = "0.0.2"
+#version = {attr = "leopardgecko.__version__"}
+# dynamic = ["version", "readme"]
+dynamic = ["version"]
+
 authors = [{ name="Luis Perdigao" , email="luis.perdigao@rfi.ac.uk"}]
 description = "Tools to analyse and process results from predicted segmentation of microscopy volumetric tomography data"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {file="LICENSE.txt"}
+
 
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
@@ -25,7 +31,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "numpy>=1.18.0",
+    "numpy",
     "h5py",
     "pyyaml",
     "dask",
@@ -33,6 +39,10 @@ dependencies = [
     "tqdm",
     "matplotlib"
 ]
+
+[tool.setuptools.dynamic]
+version = {attr = "leopardgecko.__version__"}
+# readme = {file = ["README.rst", "USAGE.rst"]}
 
 [project.optional-dependencies]
     TORCH=["torch"]
