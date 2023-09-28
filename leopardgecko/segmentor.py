@@ -762,81 +762,122 @@ class cMultiAxisRotationsSegmentor():
         
         return nn2_acc, nn2_dice
 
-    def NN2_predict(self, data_all_probs):
+    # def NN2_predict(self, data_all_probs):
         
-        logging.debug("NN2_predict()")
+    #     logging.debug("NN2_predict()")
 
+    #     if isinstance(data_all_probs, np.ndarray):
+    #         logging.info("Data type is numpy.ndarray")
+
+    #         #Need to flatten along the npred and nclasses
+    #         data_2MLP_t= np.transpose(data_all_probs,(1,2,3,0,4))
+
+    #         dsize = data_2MLP_t.shape[0]*data_2MLP_t.shape[1]*data_2MLP_t.shape[2]
+    #         inputsize = data_2MLP_t.shape[3]*data_2MLP_t.shape[4]
+
+    #         data_2MLP_t_reshape = np.reshape(data_2MLP_t, (dsize, inputsize)) #n_samples, n_features
+
+    #         #Uses the MLP classifier
+    #         mlppred = self.NN2.predict(data_2MLP_t_reshape)
+
+    #         #Reshape back to 3D
+    #         mlppred_3D = np.reshape(mlppred, data_2MLP_t.shape[0:3])
+
+    #         return mlppred_3D
+        
+    #     elif isinstance(data_all_probs, da.core.Array):
+    #         logging.info("Data type is dask.core.Array")
+    #         #Use dask reduction functionality to do the predictions
+
+    #         def chunkf(x,axis, keepdims, computing_meta=False):
+    #             #Function to apply to each chunk
+    #             #Assumes that data has the right chunk dimensions (DANGER)
+    #             data0 = np.asarray(x)
+    #             data_2MLP_t= np.transpose(data0,(1,2,3,0,4))
+    #             dsize = data_2MLP_t.shape[0]*data_2MLP_t.shape[1]*data_2MLP_t.shape[2]
+    #             inputsize = data_2MLP_t.shape[3]*data_2MLP_t.shape[4]
+    #             data_2MLP_t_reshape = np.reshape(data_2MLP_t, (dsize, inputsize)) #n_samples, n_features
+
+    #             #Runs the MLPClassifier prediction on this chunk
+    #             mlppred = self.NN2.predict(data_2MLP_t_reshape)
+                
+    #             #Reshape back to 5D
+    #             mlppred_3D_chunk = np.reshape(mlppred, (1,*data_2MLP_t.shape[0:3],1))
+
+    #             return mlppred_3D_chunk
+
+
+    #         def aggf(x, axis, keepdims):
+    #             #Function to aggregate chunks. In this case it just reduces the dimensions by
+    #             # removing the axis with width of one (multiplane and label axis)
+    #             #print(f"aggf: axis:{axis}, keepdims:{keepdims}, x.shape:", x.shape)
+    #             if not keepdims:
+    #                 x_res= np.squeeze(x, axis=(0,4)) #Remove axis 0 and 4
+    #                 return x_res
+    #             return x
+
+    #         dtype0 = self.labels_dtype
+    #         if dtype0 is None:
+    #             dtype0=self.NN2.classes_.dtype
+
+    #         b = da.reduction(data_all_probs,
+    #                         chunk=chunkf,
+    #                         aggregate= aggf,
+    #                         dtype=dtype0,
+    #                         keepdims=False,
+    #                         axis=(0,4)) #It appeears that his axis parameter is simply passed to chnkf and aggf and that's it.
+
+    #         from dask.diagnostics import ProgressBar
+
+    #         logging.info("Starting dask computation")
+    #         pbar = ProgressBar()
+    #         with pbar:
+    #             b_comp=b.compute()
+
+    #         logging.info(f"Completed. res shape:{b_comp.shape}")
+
+    #         return b_comp
+
+    def NN2_predict(self, data_all_probs):
+        # version that uses ParallelPostfit
+        logging.debug("NN2_predict()")
+        from dask_ml.wrappers import ParallelPostFit
+        from dask.diagnostics import ProgressBar
+
+        data_all_probs_da=None
         if isinstance(data_all_probs, np.ndarray):
             logging.info("Data type is numpy.ndarray")
-
-            #Need to flatten along the npred and nclasses
-            data_2MLP_t= np.transpose(data_all_probs,(1,2,3,0,4))
-
-            dsize = data_2MLP_t.shape[0]*data_2MLP_t.shape[1]*data_2MLP_t.shape[2]
-            inputsize = data_2MLP_t.shape[3]*data_2MLP_t.shape[4]
-
-            data_2MLP_t_reshape = np.reshape(data_2MLP_t, (dsize, inputsize)) #n_samples, n_features
-
-            #Uses the MLP classifier
-            mlppred = self.NN2.predict(data_2MLP_t_reshape)
-
-            #Reshape back to 3D
-            mlppred_3D = np.reshape(mlppred, data_2MLP_t.shape[0:3])
-
-            return mlppred_3D
+            data_all_probs_da = da.from_array(data_all_probs)
         
         elif isinstance(data_all_probs, da.core.Array):
             logging.info("Data type is dask.core.Array")
             #Use dask reduction functionality to do the predictions
+            data_all_probs_da=data_all_probs
+        
+        if data_all_probs_da is None:
+            raise ValueError("data_all_probs invalid")
+        
 
-            def chunkf(x,axis, keepdims, computing_meta=False):
-                #Function to apply to each chunk
-                #Assumes that data has the right chunk dimensions (DANGER)
-                data0 = np.asarray(x)
-                data_2MLP_t= np.transpose(data0,(1,2,3,0,4))
-                dsize = data_2MLP_t.shape[0]*data_2MLP_t.shape[1]*data_2MLP_t.shape[2]
-                inputsize = data_2MLP_t.shape[3]*data_2MLP_t.shape[4]
-                data_2MLP_t_reshape = np.reshape(data_2MLP_t, (dsize, inputsize)) #n_samples, n_features
+        #Need to flatten along the npred and nclasses
+        data_2MLP_t= da.transpose(data_all_probs_da,(1,2,3,0,4))
 
-                #Runs the MLPClassifier prediction on this chunk
-                mlppred = self.NN2.predict(data_2MLP_t_reshape)
-                
-                #Reshape back to 5D
-                mlppred_3D_chunk = np.reshape(mlppred, (1,*data_2MLP_t.shape[0:3],1))
+        dsize = data_2MLP_t.shape[0]*data_2MLP_t.shape[1]*data_2MLP_t.shape[2]
+        inputsize = data_2MLP_t.shape[3]*data_2MLP_t.shape[4]
 
-                return mlppred_3D_chunk
+        data_2MLP_t_reshape = da.reshape(data_2MLP_t, (dsize, inputsize))
 
+        mlp_PPF_parallel = ParallelPostFit(self.NN2)
+        mlppred = mlp_PPF_parallel.predict(data_2MLP_t_reshape)
 
-            def aggf(x, axis, keepdims):
-                #Function to aggregate chunks. In this case it just reduces the dimensions by
-                # removing the axis with width of one (multiplane and label axis)
-                #print(f"aggf: axis:{axis}, keepdims:{keepdims}, x.shape:", x.shape)
-                if not keepdims:
-                    x_res= np.squeeze(x, axis=(0,4)) #Remove axis 0 and 4
-                    return x_res
-                return x
+        #Reshape back to 3D
+        mlppred_3D = da.reshape(mlppred, data_2MLP_t.shape[0:3])
+        
+        # logging.info("Starting NN2 predict dask computation")
+        pbar = ProgressBar()
+        with pbar:
+            b_comp=mlppred_3D.compute() #compute and convert to numpy
 
-            dtype0 = self.labels_dtype
-            if dtype0 is None:
-                dtype0=self.NN2.classes_.dtype
-
-            b = da.reduction(data_all_probs,
-                            chunk=chunkf,
-                            aggregate= aggf,
-                            dtype=dtype0,
-                            keepdims=False,
-                            axis=(0,4)) #It appeears that his axis parameter is simply passed to chnkf and aggf and that's it.
-
-            from dask.diagnostics import ProgressBar
-
-            logging.info("Starting dask computation")
-            pbar = ProgressBar()
-            with pbar:
-                b_comp=b.compute()
-
-            logging.info(f"Completed. res shape:{b_comp.shape}")
-
-            return b_comp
+        return b_comp
 
 
     def save_model(self, filename):

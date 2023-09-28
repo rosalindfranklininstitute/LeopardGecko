@@ -37,7 +37,8 @@ dependencies = [
     "dask",
     "scipy",
     "tqdm",
-    "matplotlib"
+    "matplotlib",
+    "dask_ml"
 ]
 
 [tool.setuptools.dynamic]
