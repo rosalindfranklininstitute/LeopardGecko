@@ -138,4 +138,8 @@ initial/crop_data_square.ipynb
 *.tiff
 
 .vscode
-.ipynb_checkpoints
+*.ipynb_checkpoints
+
+*.lgsegmod
+*loss_plot.png
+*train_stats.csv
