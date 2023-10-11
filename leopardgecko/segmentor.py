@@ -138,7 +138,7 @@ class cMultiAxisRotationsSegmentor():
             'learning_rate_init':0.001,
             'solver':'sgd',
             'max_iter':1000,
-            'ntrain':4096 #Note that this is not a MLPClassifier parameter
+            'ntrain':262144 #Note that this is not a MLPClassifier parameter
         }
         self.NN2_settings = SimpleNamespace(**settingsNN2)
         self.labels_dtype=None #default
