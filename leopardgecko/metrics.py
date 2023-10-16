@@ -66,7 +66,7 @@ def MetricScoreOfVols_get_dicescore(d0,d1, iseg):
     """
     Get dice coefficient between two volumes, for the segmentation given
     
-    For teh given iseg class, it uses the formula
+    For a given iseg class, it uses the formula
 
     d_iclass = 2*(p*t) / (p+t)
 

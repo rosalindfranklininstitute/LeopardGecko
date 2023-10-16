@@ -30,6 +30,7 @@ except Exception as e:
     logging.info(str(e))
     sys.exit()
 
+# TODO: Modify to use blocking algorithm in utils
 
 def AvgPool3D_LargeData(data3d, *,blocksize = 512, k_width=256 , s_stride=8 ):
     #This function will do the avarage pooling of a 3D data volume using PyTorch AvgPool3D

@@ -457,6 +457,14 @@ class cMultiAxisRotationsSegmentor():
                 'pred_planes'
                 'pred_rots'
                 'pred_ipred'
+
+        This function will optionally output the following:
+            - if self.NN1_volsegm_pred_path: predictions that would be expected
+            from standard volumesegmantics.
+            - (TODO) if self.NN1_consistencyscore_outpath: calculates consistency score
+            from probabilities (default) or labels
+
+
         """
 
         #Load volume segmantics model from file to class instance
@@ -464,8 +472,17 @@ class cMultiAxisRotationsSegmentor():
         #Using this VolSeg2dPredictor will not clip data
         #Also moved this functionality to later
 
+        # For volumesegmantics standard predictions if set
+        labels_vs = None
+        probs_vs = None
+
+        from . import ConsistencyScore
+        # For consistency score determination from predictions if set
+        consistencyscore0 = ConsistencyScore.cConsistencyScoreProbsAccumulate()
+
+
         logging.debug("NN1_predict()")
-        #Internal function
+        #Internal functions
         def _save_pred_data(data, count,axis, rot):
             # Saves predicted data to h5 file in tempdir and return file path in case it is needed
             file_path = f"{pred_folder_out}/pred_{count}_{axis}_{rot}.h5"
@@ -473,6 +490,43 @@ class cMultiAxisRotationsSegmentor():
             save_data_to_hdf5(data, file_path)
             return file_path
         
+        def _squeeze_merge_vols_by_max_prob( probs2, labels2):
+            #Code from volumesegmantics that merges predictions
+            logging.debug("_merge_vols_by_max_prob()")
+            max_prob_idx = np.argmax(probs2, axis=0)
+            max_prob_idx = max_prob_idx[np.newaxis, :, :, :]
+            probs2[0] = np.squeeze(
+                np.take_along_axis(probs2, max_prob_idx, axis=0)
+            )
+            labels2[0] = np.squeeze(
+                np.take_along_axis(labels2, max_prob_idx, axis=0)
+            )
+            return
+        
+        def _handle_pred_data_probs(self,pred_probs, pred_labels, count,axis,rot):
+            #Accumulate for consistency score
+            logging.debug(f"_handle_pred_data_probs(), count,axis,rot:{count},{axis},{rot}, self.NN1_consistencyscore_outpath:{self.NN1_consistencyscore_outpath}, self.NN1_volsegm_pred_path:{self.NN1_volsegm_pred_path}")
+            if not self.NN1_consistencyscore_outpath is None:
+                consistencyscore0.accumulate(pred_probs)
+
+            # Accumulate for volume segmantics
+            if not self.NN1_volsegm_pred_path is None:
+                if labels_vs is None:
+                    logging.debug("First labels and probs file initializes")
+                    shape_tup = pred_labels.shape
+                    labels_vs = np.empty((2, *shape_tup), dtype=np.uint8)
+                    probs_vs = np.empty((2, *shape_tup), dtype=np.float16)
+                    labels_vs[0]=pred_labels
+                    probs_vs[0]=pred_probs
+                else:
+                    labels_vs[1]=pred_labels
+                    probs_vs[1]=pred_probs
+
+                    _squeeze_merge_vols_by_max_prob(probs_vs,labels_vs)
+
+            #Save and return the result (filepath) from _save_pred_data() function 
+            return _save_pred_data(pred_probs, count,axis,rot)
+
         data_to_predict_l=None
         if not isinstance(data_to_predict, list):
             logging.debug("data_to_predict not a list. Converting to list")
@@ -495,7 +549,9 @@ class cMultiAxisRotationsSegmentor():
             logging.info(f"Data to predict index:{i}")
             data_vol1 = np.array(data_to_predict0) #Copies
 
-            #Check this is working
+            #setup Prediction Manager
+            #It will also clip data depending on settings, and to get that data
+            # it is property data_vol
             volseg2pred_m = VolSeg2DPredictionManager(
                 model_file_path= self.model_NN1_path,
                 data_vol=data_vol1,
@@ -505,6 +561,12 @@ class cMultiAxisRotationsSegmentor():
             data_vol0 = volseg2pred_m.data_vol  #Collects clipped data
 
             itag=0
+
+            # reinitialise
+            labels_vs = None 
+            probs_vs = None
+            consistencyscore0.clear()
+
             for krot in range(0, 4):
                 rot_angle_degrees = krot * 90
                 logging.info(f"Volume to be rotated by {rot_angle_degrees} degrees")
@@ -520,14 +582,16 @@ class cMultiAxisRotationsSegmentor():
                     axis=Axis.Z
                 )
                 pred_probs = np.rot90(res[1], -krot, axes=planeYX) #invert rotation before saving
+                pred_labels = np.rot90(res[0], -krot, axes=planeYX)
+                # fn = _save_pred_data(pred_probs, i, "YX", rot_angle_degrees)
+                fn = _handle_pred_data_probs(self,pred_probs,pred_labels, i, "YX", rot_angle_degrees)
+
                 #Saves prediction labels
                 #Sets nlabels from last dimension. Assumes last dimension is number of labels
                 #Used to chunk data when saving
                 self.nlabels=pred_probs.shape[-1]
-                fn = _save_pred_data(pred_probs, i, "YX", rot_angle_degrees)
                 pred_data_probs_filenames.append(fn)
 
-                pred_labels = np.rot90(res[0], -krot, axes=planeYX)
                 fn = _save_pred_data(pred_labels, i, "YX_labels", rot_angle_degrees)
                 pred_data_labels_filenames.append(fn)
 
@@ -547,10 +611,11 @@ class cMultiAxisRotationsSegmentor():
                     data_vol, axis=Axis.Y
                 )
                 pred_probs = np.rot90(res[1], -krot, axes=planeZX) #invert rotation before saving
-                fn = _save_pred_data(pred_probs, i, "ZX", rot_angle_degrees)
+                pred_labels = np.rot90(res[0], -krot, axes=planeZX)
+                # fn = _save_pred_data(pred_probs, i, "ZX", rot_angle_degrees)
+                fn = _handle_pred_data_probs(self,pred_probs,pred_labels, i, "ZX", rot_angle_degrees)
                 pred_data_probs_filenames.append(fn)
 
-                pred_labels = np.rot90(res[0], -krot, axes=planeZX)
                 fn = _save_pred_data(pred_labels, i, "ZX_labels", rot_angle_degrees)
                 pred_data_labels_filenames.append(fn)
 
@@ -569,7 +634,9 @@ class cMultiAxisRotationsSegmentor():
                     data_vol, axis=Axis.X
                 )
                 pred_probs = np.rot90(res[1], -krot, axes=planeZY) #invert rotation before saving
-                fn = _save_pred_data(pred_probs, i, "ZY", rot_angle_degrees)
+                pred_labels = np.rot90(res[0], -krot, axes=planeZY)
+                # fn = _save_pred_data(pred_probs, i, "ZY", rot_angle_degrees)
+                fn = _handle_pred_data_probs(self,pred_probs,pred_labels, i, "ZY", rot_angle_degrees)
                 pred_data_probs_filenames.append(fn)
 
                 pred_labels = np.rot90(res[0], -krot, axes=planeZY)
@@ -597,50 +664,42 @@ class cMultiAxisRotationsSegmentor():
             'pred_shapes': pred_shapes,
         })
         
-        #This code bwlow is untested
+        #This code below is untested
         #Run standard volume segmantics merging of predicted volumes and saves as h5 file
         if not self.NN1_volsegm_pred_path is None:
             logging.info(f"volsegm_pred_path provided:{self.NN1_volsegm_pred_path} so will merge to max probabilities")
-            #This is the method used by volume segmatics to merge results
-            def _squeeze_merge_vols_by_max_prob(self, probs2, labels2):
-                logging.debug("_merge_vols_by_max_prob()")
-                max_prob_idx = np.argmax(probs2, axis=0)
-                max_prob_idx = max_prob_idx[np.newaxis, :, :, :]
-                probs2[0] = np.squeeze(
-                    np.take_along_axis(probs2, max_prob_idx, axis=0)
-                )
-                labels2[0] = np.squeeze(
-                    np.take_along_axis(labels2, max_prob_idx, axis=0)
-                )
-                return
+            # #This is the method used by volume segmatics to merge results
 
+            # labels_vs = None
+            # probs_vs = None
+            # #Load labels data one by one and merge
+            # for i in tqdm.trange(len(pred_data_labels_filenames)):
+            #     fn_l0=pred_data_labels_filenames[i]
+            #     fn_p0=pred_data_probs_filenames[i]
 
-            labels2 = None
-            probs2 = None
-            #Load labels data one by one and merge
-            for i in tqdm.trange(len(pred_data_labels_filenames)):
-                fn_l0=pred_data_labels_filenames[i]
-                fn_p0=pred_data_probs_filenames[i]
+            #     labels0=read_h5_to_np(fn_l0)
+            #     probs0=read_h5_to_np(fn_p0)
 
-                labels0=read_h5_to_np(fn_l0)
-                probs0=read_h5_to_np(fn_p0)
+            #     if labels_vs is None:
+            #         logging.debug("First labels and probs file initializes")
+            #         shape_tup = labels0.shape
+            #         labels_vs = np.empty((2, *shape_tup), dtype=np.uint8)
+            #         probs_vs = np.empty((2, *shape_tup), dtype=np.float16)
+            #         labels_vs[0]=labels0
+            #         probs_vs[0]=probs0
+            #     else:
+            #         labels_vs[1]=labels0
+            #         probs_vs[1]=probs0
 
-                if labels2 is None:
-                    logging.debug("First labels and probs file initializes")
-                    shape_tup = labels0.shape
-                    labels2 = np.empty((2, *shape_tup), dtype=np.uint8)
-                    probs2 = np.empty((2, *shape_tup), dtype=np.float16)
-                    labels2[0]=labels0
-                    probs2[0]=probs0
-                else:
-                    labels2[1]=labels0
-                    probs0[1]=probs0
-
-                    _squeeze_merge_vols_by_max_prob(probs2,labels2)
+            #         _squeeze_merge_vols_by_max_prob(probs_vs,labels_vs)
             
             #Upon completion, save labels
-            save_data_to_hdf5(labels2[0],self.NN1_volsegm_pred_path)
-                    
+            save_data_to_hdf5(labels_vs[0],self.NN1_volsegm_pred_path)
+
+        #Get the final consistency score
+        if not self.NN1_consistencyscore_outpath is None:
+            save_data_to_hdf5(consistencyscore0.getCScore(),self.NN1_consistencyscore_outpath)
+
 
         #return pred_data_probs_filenames, pred_data_labels_filenames
         return all_pred_pd

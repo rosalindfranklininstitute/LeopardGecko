@@ -74,7 +74,7 @@ def map_vol_function_by_blocking(func0, data3d, block_shape, margins_shape):
     shapedata=data3d.shape
     logging.debug(f"map_vol_function_by_blocking() , data3d.shape:{data3d.shape} ,dtype:{data3d.dtype} block_shape:{block_shape}, margins_shape:{margins_shape}")
 
-    bl_step = [ block_shape[i]-margins_shape[i] for i in range(3) ]
+    bl_step = [ block_shape[i]-2*margins_shape[i] for i in range(3) ]
     logging.debug(f"bl_step:{bl_step}")
 
     datares = None #To collect results, it will be setup initially with correct dtype when first results arrive
