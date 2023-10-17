@@ -19,6 +19,9 @@ limitations under the License.
 import numpy as np
 import logging
 
+#Normalisation, to be used to ensure that CS scores range from 0 to 1
+normc = lambda Nc: float(Nc)/ (float(Nc)-1.0)
+
 class cConsistencyScoreProbsAccumulate():
     '''
     Utility class to calculate Consistency score from volume data
@@ -34,12 +37,13 @@ class cConsistencyScoreProbsAccumulate():
 
     def accumulate(self,data):
         '''
+        Provide data from each prediction, one by one
         Data must be in format (z,y,x, class)
         '''
         if self.probs_accum is None:
-            self.probs_accum = data.copy()
+            self.probs_accum = data.copy().astype(np.float32)
         else:
-            self.probs_accum= self.probs_accum+data
+            self.probs_accum= self.probs_accum+data.astype(np.float32)
         self.count+=1
 
     def clear(self):
@@ -67,11 +71,11 @@ class cConsistencyScoreProbsAccumulate():
         prob_sq = np.power(prob_mean, 2)
 
         #axis=3?
-        ax0= len(self.probs_accum.shape)-1 #gets last index
-        normc = 1/(1-1/float(Nc))**2
-        cscore = normc* ( np.sum(prob_sq, axis=ax0) + (1.0-2.0*np.sum(prob_mean,axis=ax0))/float(Nc) )
+        ax0= len(prob_mean.shape)-1 #gets last index
+        #normc = 1/(1-1/float(Nc))**2
+        cscore = normc(Nc)* ( np.sum(prob_sq, axis=ax0) + (1.0-2.0*np.sum(prob_mean,axis=ax0))/float(Nc) )
 
-        return cscore
+        return cscore.astype(np.float32)
 
 
 def getCScoreFromAllProbsData(data_way_probs):
@@ -91,19 +95,22 @@ def getCScoreFromAllProbsData(data_way_probs):
     Nc = data_way_probs.shape[-1] #number of classes
 
     logging.debug(f"getCScoreFromAllProbsData(), Nways:{Nways} , Nc:{Nc}")
+    print(f"getCScoreFromAllProbsData(), Nways:{Nways} , Nc:{Nc}")
 
     ax0= len(data_way_probs.shape)-1
-    normc = 1/(1-1/float(Nc))**2
+    # normc = 1/(1-1/float(Nc))**2
 
-    prob_mean = np.mean(data_way_probs, axis=0)
+    prob_mean = np.mean(data_way_probs, axis=0) #across all ways
     prob_sq = np.power(prob_mean, 2)
 
-    cscore = normc* ( np.sum(prob_sq, axis=ax0) + (1.0-2.0*np.sum(prob_mean,axis=ax0))/float(Nc) )
+    ax0= len(prob_mean.shape)-1
 
-    return cscore
+    cscore = normc(Nc)* ( np.sum(prob_sq, axis=ax0) + (1.0-2.0*np.sum(prob_mean,axis=ax0))/float(Nc) )
+
+    return cscore.astype(np.float32)
 
 
-def getCScoreFromAllLabelsData(data_way_labels, nclasses=None):
+def getCScoreFromMultipleWayLabelsPred(data_way_labels, nclasses=None):
     '''
     Calculates consistency score from data_way_labels
     
@@ -118,14 +125,14 @@ def getCScoreFromAllLabelsData(data_way_labels, nclasses=None):
 
     Nways= data_way_labels.shape[0]
     if nclasses is None:
-        nclasses = np.max(data_way_labels)
+        nclasses = np.max(data_way_labels)+1
     
-    logging.debug(f"getCScoreFromAllLabelsData(), Nways:{Nways} , nclasses:{nclasses}")
+    logging.debug(f"getCScoreFromAllLabelsData(), Nways:{Nways} , nclasses:{nclasses}, datshape:{data_way_labels.shape[1:]}")
 
     Nc=nclasses
 
     #Handles each class label seperately
-    data_xyz_label=np.zeros( (*data_way_labels.shape[1,...], Nc))
+    data_xyz_label=np.zeros( (*data_way_labels.shape[1:], Nc))
 
     for ilabel in range(Nc):
         data_label0= np.where(data_way_labels==ilabel, 1, 0) #Marks the selected class with ones
@@ -136,10 +143,10 @@ def getCScoreFromAllLabelsData(data_way_labels, nclasses=None):
     # At this point data_xyz_label should have the number of voxels for the selected label
 
     ax0= len(data_xyz_label.shape)-1
-    normc = 1/(1-1/float(Nc))**2
+    # normc = 1/(1-1/float(Nc))**2
 
     fract_sq = np.power( (data_xyz_label/ Nways), 2)
 
-    cscore = normc* ( np.sum(fract_sq, axis=ax0) + (1.0-2.0/Nways*np.sum(data_xyz_label,axis=ax0))/float(Nc) )
+    cscore = normc(Nc)* ( np.sum(fract_sq, axis=ax0) + (1.0-2.0/Nways*np.sum(data_xyz_label,axis=ax0))/float(Nc) )
 
-    return cscore
+    return cscore.astype(np.float32)
