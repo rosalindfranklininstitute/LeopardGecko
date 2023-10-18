@@ -74,8 +74,9 @@ class cMultiAxisRotationsSegmentor():
 
         self.temp_data_outdir=temp_data_outdir
 
-        self.cuda_device=cuda_device
+        #self.cuda_device=cuda_device
         self._init_settings()
+        self.set_cuda_device(cuda_device)
 
         self.all_nn1_pred_pd=None
 
@@ -94,7 +95,7 @@ class cMultiAxisRotationsSegmentor():
             'image_size': 256,
             'downsample': False,
             'training_set_proportion': 0.8,
-            'cuda_device': self.cuda_device,
+            'cuda_device': 0,
             'num_cyc_frozen': 8,
             'num_cyc_unfrozen': 5,
             'patience': 3,
@@ -120,7 +121,7 @@ class cMultiAxisRotationsSegmentor():
             'clip_data': True,
             'st_dev_factor': 2.575,
             'data_hdf5_path': '/data',
-            'cuda_device': self.cuda_device,
+            'cuda_device': 0,
             'downsample': False,
             'one_hot': False,
             'prediction_axis': 'Z'}
@@ -143,8 +144,13 @@ class cMultiAxisRotationsSegmentor():
         self.NN2_settings = SimpleNamespace(**settingsNN2)
         self.labels_dtype=None #default
 
+        #added settings
+        self.NN1_volsegm_pred_path=None
+        self.NN1_consistencyscore_outpath=None
+
+
     def set_cuda_device(self,n):
-        self.cuda_device=n
+        self._cuda_device=n
         self.NN1_train_settings.cuda_device=n
         self.NN1_pred_settings.cuda_device=n
 
@@ -461,9 +467,8 @@ class cMultiAxisRotationsSegmentor():
         This function will optionally output the following:
             - if self.NN1_volsegm_pred_path: predictions that would be expected
             from standard volumesegmantics.
-            - (TODO) if self.NN1_consistencyscore_outpath: calculates consistency score
+            - if self.NN1_consistencyscore_outpath: calculates consistency score
             from probabilities (default) or labels
-
 
         """
 
@@ -478,7 +483,7 @@ class cMultiAxisRotationsSegmentor():
 
         from . import ConsistencyScore
         # For consistency score determination from predictions if set
-        consistencyscore0 = ConsistencyScore.cConsistencyScoreProbsAccumulate()
+        consistencyscore0 = ConsistencyScore.cConsistencyScoreMultipleWayProbsAccumulate()
 
 
         logging.debug("NN1_predict()")
@@ -512,6 +517,7 @@ class cMultiAxisRotationsSegmentor():
             # Accumulate for volume segmantics
             if not self.NN1_volsegm_pred_path is None:
                 if labels_vs is None:
+                    logging.info(f"self.NN1_volsegm_pred_path provided:{self.NN1_volsegm_pred_path}. Will merge and save to predicted labels using volumesegmantics method.")
                     logging.debug("First labels and probs file initializes")
                     shape_tup = pred_labels.shape
                     labels_vs = np.empty((2, *shape_tup), dtype=np.uint8)
@@ -667,32 +673,8 @@ class cMultiAxisRotationsSegmentor():
         #This code below is untested
         #Run standard volume segmantics merging of predicted volumes and saves as h5 file
         if not self.NN1_volsegm_pred_path is None:
-            logging.info(f"volsegm_pred_path provided:{self.NN1_volsegm_pred_path} so will merge to max probabilities")
-            # #This is the method used by volume segmatics to merge results
+            logging.info(f"volsegm_pred_path provided:{self.NN1_volsegm_pred_path}, saving merged prediction labels")
 
-            # labels_vs = None
-            # probs_vs = None
-            # #Load labels data one by one and merge
-            # for i in tqdm.trange(len(pred_data_labels_filenames)):
-            #     fn_l0=pred_data_labels_filenames[i]
-            #     fn_p0=pred_data_probs_filenames[i]
-
-            #     labels0=read_h5_to_np(fn_l0)
-            #     probs0=read_h5_to_np(fn_p0)
-
-            #     if labels_vs is None:
-            #         logging.debug("First labels and probs file initializes")
-            #         shape_tup = labels0.shape
-            #         labels_vs = np.empty((2, *shape_tup), dtype=np.uint8)
-            #         probs_vs = np.empty((2, *shape_tup), dtype=np.float16)
-            #         labels_vs[0]=labels0
-            #         probs_vs[0]=probs0
-            #     else:
-            #         labels_vs[1]=labels0
-            #         probs_vs[1]=probs0
-
-            #         _squeeze_merge_vols_by_max_prob(probs_vs,labels_vs)
-            
             #Upon completion, save labels
             save_data_to_hdf5(labels_vs[0],self.NN1_volsegm_pred_path)
 
@@ -820,82 +802,7 @@ class cMultiAxisRotationsSegmentor():
                 nn2_dice.append(nn2_dice0)
         
         return nn2_acc, nn2_dice
-
-    # def NN2_predict(self, data_all_probs):
-        
-    #     logging.debug("NN2_predict()")
-
-    #     if isinstance(data_all_probs, np.ndarray):
-    #         logging.info("Data type is numpy.ndarray")
-
-    #         #Need to flatten along the npred and nclasses
-    #         data_2MLP_t= np.transpose(data_all_probs,(1,2,3,0,4))
-
-    #         dsize = data_2MLP_t.shape[0]*data_2MLP_t.shape[1]*data_2MLP_t.shape[2]
-    #         inputsize = data_2MLP_t.shape[3]*data_2MLP_t.shape[4]
-
-    #         data_2MLP_t_reshape = np.reshape(data_2MLP_t, (dsize, inputsize)) #n_samples, n_features
-
-    #         #Uses the MLP classifier
-    #         mlppred = self.NN2.predict(data_2MLP_t_reshape)
-
-    #         #Reshape back to 3D
-    #         mlppred_3D = np.reshape(mlppred, data_2MLP_t.shape[0:3])
-
-    #         return mlppred_3D
-        
-    #     elif isinstance(data_all_probs, da.core.Array):
-    #         logging.info("Data type is dask.core.Array")
-    #         #Use dask reduction functionality to do the predictions
-
-    #         def chunkf(x,axis, keepdims, computing_meta=False):
-    #             #Function to apply to each chunk
-    #             #Assumes that data has the right chunk dimensions (DANGER)
-    #             data0 = np.asarray(x)
-    #             data_2MLP_t= np.transpose(data0,(1,2,3,0,4))
-    #             dsize = data_2MLP_t.shape[0]*data_2MLP_t.shape[1]*data_2MLP_t.shape[2]
-    #             inputsize = data_2MLP_t.shape[3]*data_2MLP_t.shape[4]
-    #             data_2MLP_t_reshape = np.reshape(data_2MLP_t, (dsize, inputsize)) #n_samples, n_features
-
-    #             #Runs the MLPClassifier prediction on this chunk
-    #             mlppred = self.NN2.predict(data_2MLP_t_reshape)
-                
-    #             #Reshape back to 5D
-    #             mlppred_3D_chunk = np.reshape(mlppred, (1,*data_2MLP_t.shape[0:3],1))
-
-    #             return mlppred_3D_chunk
-
-
-    #         def aggf(x, axis, keepdims):
-    #             #Function to aggregate chunks. In this case it just reduces the dimensions by
-    #             # removing the axis with width of one (multiplane and label axis)
-    #             #print(f"aggf: axis:{axis}, keepdims:{keepdims}, x.shape:", x.shape)
-    #             if not keepdims:
-    #                 x_res= np.squeeze(x, axis=(0,4)) #Remove axis 0 and 4
-    #                 return x_res
-    #             return x
-
-    #         dtype0 = self.labels_dtype
-    #         if dtype0 is None:
-    #             dtype0=self.NN2.classes_.dtype
-
-    #         b = da.reduction(data_all_probs,
-    #                         chunk=chunkf,
-    #                         aggregate= aggf,
-    #                         dtype=dtype0,
-    #                         keepdims=False,
-    #                         axis=(0,4)) #It appeears that his axis parameter is simply passed to chnkf and aggf and that's it.
-
-    #         from dask.diagnostics import ProgressBar
-
-    #         logging.info("Starting dask computation")
-    #         pbar = ProgressBar()
-    #         with pbar:
-    #             b_comp=b.compute()
-
-    #         logging.info(f"Completed. res shape:{b_comp.shape}")
-
-    #         return b_comp
+    
 
     def NN2_predict(self, data_all_probs):
         # version that uses ParallelPostfit

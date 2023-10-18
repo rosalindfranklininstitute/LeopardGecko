@@ -22,16 +22,24 @@ import logging
 #Normalisation, to be used to ensure that CS scores range from 0 to 1
 normc = lambda Nc: float(Nc)/ (float(Nc)-1.0)
 
-class cConsistencyScoreProbsAccumulate():
+class cConsistencyScoreMultipleWayProbsAccumulate():
     '''
-    Utility class to calculate Consistency score from volume data
+    Utility class to calculate Consistency score from multiple way volume data
     Data must be in format (z,y,x, class)
-    and is provided one by one, one "way" at the time using accumulate()
+    and is provided one by one, one "way" at the time, using accumulate() function
 
     Function getCScore() gets the CS score in a volume heatmap format (z,y,x)
 
-    The formula used is given below
+    The formula used is given in getScore docstring
+
+    This method of using class to calculate the consistency score differs from
+    the function getCScoreFromMultipleWayProbsPred() in the way that uses less RAM
+    footprint. getCScoreFromMultipleWayProbsPred() requires a 5dim array, whereas
+    this class requres a 4dim array to be provided each time. Results obtained by
+    either method are equivalent.
+
     '''
+
     def __init__(self):
         self.clear()
 
@@ -78,7 +86,7 @@ class cConsistencyScoreProbsAccumulate():
         return cscore.astype(np.float32)
 
 
-def getCScoreFromAllProbsData(data_way_probs):
+def getCScoreFromMultipleWayProbsPred(data_way_probs):
     '''
     Calculates consistency score from data_way_probs
     

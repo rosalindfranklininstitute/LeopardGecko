@@ -327,7 +327,7 @@ def _getPieSlicesPointedToMaxEdge(data, hvector):
             return None
 
 
-tab10 = matplotlib.cm.get_cmap('tab10')
+tab10 = matplotlib.colormaps.get_cmap('tab10') # or matplotlib.colormaps['tab10']
 
 def plot_hvectors_w_classCountAsPies_oriented1(hvect_gndclass_counter_data1):
 
