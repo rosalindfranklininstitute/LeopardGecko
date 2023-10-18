@@ -38,7 +38,8 @@ dependencies = [
     "scipy",
     "tqdm",
     "matplotlib",
-    "dask_ml"
+    "dask_ml",
+    "volume-segmantics@git+https://github.com/rosalindfranklininstitute/volume-segmantics/#egg=LMAPdev"
 ]
 
 [tool.setuptools.dynamic]
