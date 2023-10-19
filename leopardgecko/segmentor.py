@@ -478,8 +478,8 @@ class cMultiAxisRotationsSegmentor():
         #Also moved this functionality to later
 
         # For volumesegmantics standard predictions if set
-        labels_vs = None
-        probs_vs = None
+        self.labels_vs_2stack = None
+        self.probs_vs_2stack = None
 
         from . import ConsistencyScore
         # For consistency score determination from predictions if set
@@ -509,6 +509,11 @@ class cMultiAxisRotationsSegmentor():
             return
         
         def _handle_pred_data_probs(self,pred_probs, pred_labels, count,axis,rot):
+            #nonlocal attempts to grab these variables defined in previous scope
+            # Another way to handle this is to define variable with self.
+            # nonlocal labels_vs
+            # nonlocal probs_vs
+            
             #Accumulate for consistency score
             logging.debug(f"_handle_pred_data_probs(), count,axis,rot:{count},{axis},{rot}, self.NN1_consistencyscore_outpath:{self.NN1_consistencyscore_outpath}, self.NN1_volsegm_pred_path:{self.NN1_volsegm_pred_path}")
             if not self.NN1_consistencyscore_outpath is None:
@@ -516,19 +521,19 @@ class cMultiAxisRotationsSegmentor():
 
             # Accumulate for volume segmantics
             if not self.NN1_volsegm_pred_path is None:
-                if labels_vs is None:
+                if self.labels_vs_2stack is None:
                     logging.info(f"self.NN1_volsegm_pred_path provided:{self.NN1_volsegm_pred_path}. Will merge and save to predicted labels using volumesegmantics method.")
                     logging.debug("First labels and probs file initializes")
                     shape_tup = pred_labels.shape
-                    labels_vs = np.empty((2, *shape_tup), dtype=np.uint8)
-                    probs_vs = np.empty((2, *shape_tup), dtype=np.float16)
-                    labels_vs[0]=pred_labels
-                    probs_vs[0]=pred_probs
+                    self.labels_vs_2stack = np.empty((2, *shape_tup), dtype=np.uint8)
+                    self.probs_vs_2stack = np.empty((2, *shape_tup), dtype=np.float16)
+                    self.labels_vs_2stack[0]=pred_labels
+                    self.probs_vs_2stack[0]=pred_probs
                 else:
-                    labels_vs[1]=pred_labels
-                    probs_vs[1]=pred_probs
+                    self.labels_vs_2stack[1]=pred_labels
+                    self.probs_vs_2stack[1]=pred_probs
 
-                    _squeeze_merge_vols_by_max_prob(probs_vs,labels_vs)
+                    _squeeze_merge_vols_by_max_prob(self.probs_vs_2stack,self.labels_vs_2stack)
 
             #Save and return the result (filepath) from _save_pred_data() function 
             return _save_pred_data(pred_probs, count,axis,rot)
@@ -569,8 +574,8 @@ class cMultiAxisRotationsSegmentor():
             itag=0
 
             # reinitialise
-            labels_vs = None 
-            probs_vs = None
+            self.labels_vs_2stack = None 
+            self.probs_vs_2stack = None
             consistencyscore0.clear()
 
             for krot in range(0, 4):
@@ -676,12 +681,15 @@ class cMultiAxisRotationsSegmentor():
             logging.info(f"volsegm_pred_path provided:{self.NN1_volsegm_pred_path}, saving merged prediction labels")
 
             #Upon completion, save labels
-            save_data_to_hdf5(labels_vs[0],self.NN1_volsegm_pred_path)
+            save_data_to_hdf5(self.labels_vs_2stack[0],self.NN1_volsegm_pred_path)
 
         #Get the final consistency score
         if not self.NN1_consistencyscore_outpath is None:
             save_data_to_hdf5(consistencyscore0.getCScore(),self.NN1_consistencyscore_outpath)
 
+        #Clean up
+        del(self.labels_vs_2stack)
+        del(self.probs_vs_2stack)
 
         #return pred_data_probs_filenames, pred_data_labels_filenames
         return all_pred_pd
