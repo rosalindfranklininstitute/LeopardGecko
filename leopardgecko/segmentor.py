@@ -545,8 +545,8 @@ class cMultiAxisRotationsSegmentor():
                     logging.info(f"self.NN1_volsegm_pred_path provided:{self.NN1_volsegm_pred_path}. Will merge and save to predicted labels using volumesegmantics method.")
                     logging.debug("First labels and probs file initializes")
                     shape_tup = pred_labels.shape
-                    self.labels_vs_2stack = np.empty((2, *shape_tup), dtype=np.uint8)
-                    self.probs_vs_2stack = np.empty((2, *shape_tup), dtype=np.float16)
+                    self.labels_vs_2stack = np.empty((2, *shape_tup), dtype=pred_labels.dtype)
+                    self.probs_vs_2stack = np.empty((2, *shape_tup), dtype=pred_probs.dtype)
                     self.labels_vs_2stack[0]=pred_labels
                     self.probs_vs_2stack[0]=probs_class_squeezed
                 else:
