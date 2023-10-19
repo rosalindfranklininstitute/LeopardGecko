@@ -79,7 +79,7 @@ class cConsistencyScoreMultipleWayProbsAccumulate():
         prob_sq = np.power(prob_mean, 2)
 
         #axis=3?
-        ax0= len(prob_mean.shape)-1 #gets last index
+        ax0= prob_mean.ndim-1 #gets last index
         #normc = 1/(1-1/float(Nc))**2
         cscore = normc(Nc)* ( np.sum(prob_sq, axis=ax0) + (1.0-2.0*np.sum(prob_mean,axis=ax0))/float(Nc) )
 
@@ -105,7 +105,7 @@ def getCScoreFromMultipleWayProbsPred(data_way_probs):
     logging.debug(f"getCScoreFromAllProbsData(), Nways:{Nways} , Nc:{Nc}")
     print(f"getCScoreFromAllProbsData(), Nways:{Nways} , Nc:{Nc}")
 
-    ax0= len(data_way_probs.shape)-1
+    ax0= data_way_probs.ndim-1
     # normc = 1/(1-1/float(Nc))**2
 
     prob_mean = np.mean(data_way_probs, axis=0) #across all ways
@@ -150,7 +150,7 @@ def getCScoreFromMultipleWayLabelsPred(data_way_labels, nclasses=None):
     
     # At this point data_xyz_label should have the number of voxels for the selected label
 
-    ax0= len(data_xyz_label.shape)-1
+    ax0= data_xyz_label.ndim-1
     # normc = 1/(1-1/float(Nc))**2
 
     fract_sq = np.power( (data_xyz_label/ Nways), 2)

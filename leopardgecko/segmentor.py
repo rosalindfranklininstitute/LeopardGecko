@@ -514,6 +514,9 @@ class cMultiAxisRotationsSegmentor():
             # nonlocal labels_vs
             # nonlocal probs_vs
             
+            # pred_probs is in format (z,y,x, class)
+            # pred_labels is in format (z,y,x)
+
             #Accumulate for consistency score
             logging.debug(f"_handle_pred_data_probs(), count,axis,rot:{count},{axis},{rot}, self.NN1_consistencyscore_outpath:{self.NN1_consistencyscore_outpath}, self.NN1_volsegm_pred_path:{self.NN1_volsegm_pred_path}")
             if not self.NN1_consistencyscore_outpath is None:
@@ -521,6 +524,23 @@ class cMultiAxisRotationsSegmentor():
 
             # Accumulate for volume segmantics
             if not self.NN1_volsegm_pred_path is None:
+                logging.debug("Calculating probs_class_squeezed")
+                # # Squeeze probabilities along class
+                # # by grabing the highest probable class label and probability
+                # max_prob_idx = np.argmax(pred_probs, axis=1, keepdims=True)
+                # # Extract along axis from outputs
+                # probs_class_squeezed = np.take(pred_probs, axis=1, indices=max_prob_idx) #(data,indices, axis)
+                # # Remove the label dimension
+                # probs_class_squeezed = np.squeeze(probs_class_squeezed, axis=1)
+
+                # max_prob_idx = torch.argmax(probs, dim=1, keepdim=True)
+                # # Extract along axis from outputs
+                # probs = torch.gather(probs, 1, max_prob_idx)  #(data,dim, index)
+                # # Remove the label dimension
+                # probs = torch.squeeze(probs, dim=1)
+
+                probs_class_squeezed = np.max(pred_probs, axis=pred_probs.ndim-1)
+
                 if self.labels_vs_2stack is None:
                     logging.info(f"self.NN1_volsegm_pred_path provided:{self.NN1_volsegm_pred_path}. Will merge and save to predicted labels using volumesegmantics method.")
                     logging.debug("First labels and probs file initializes")
@@ -528,10 +548,10 @@ class cMultiAxisRotationsSegmentor():
                     self.labels_vs_2stack = np.empty((2, *shape_tup), dtype=np.uint8)
                     self.probs_vs_2stack = np.empty((2, *shape_tup), dtype=np.float16)
                     self.labels_vs_2stack[0]=pred_labels
-                    self.probs_vs_2stack[0]=pred_probs
+                    self.probs_vs_2stack[0]=probs_class_squeezed
                 else:
                     self.labels_vs_2stack[1]=pred_labels
-                    self.probs_vs_2stack[1]=pred_probs
+                    self.probs_vs_2stack[1]=probs_class_squeezed
 
                     _squeeze_merge_vols_by_max_prob(self.probs_vs_2stack,self.labels_vs_2stack)
 
