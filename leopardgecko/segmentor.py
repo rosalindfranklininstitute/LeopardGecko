@@ -1104,7 +1104,7 @@ class cMultiAxisRotationsSegmentor():
     @staticmethod
     def copy_from(lgsegm0):
         """ create new lgsegmentor object with properties being a copy of
-        existng lgsegmentor object
+        existing lgsegmentor object
         """
         import copy
 
