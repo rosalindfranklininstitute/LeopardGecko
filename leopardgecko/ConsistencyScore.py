@@ -48,6 +48,9 @@ class cConsistencyScoreMultipleWayProbsAccumulate():
         Provide data from each prediction, one by one
         Data must be in format (z,y,x, class)
         '''
+
+        logging.debug(f"accumulate(), data.shape:{data.shape}, data.dtype:{data.dtype}")
+
         if self.probs_accum is None:
             self.probs_accum = data.copy().astype(np.float32)
         else:
@@ -55,6 +58,7 @@ class cConsistencyScoreMultipleWayProbsAccumulate():
         self.count+=1
 
     def clear(self):
+        logging.debug(f"clear()")
         self.probs_accum=None
         self.count=0
 

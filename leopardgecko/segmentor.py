@@ -53,7 +53,7 @@ import pandas as pd
 
 class cMultiAxisRotationsSegmentor():
 
-    def __init__(self, models_prefix="lg_segmentor_model_", temp_data_outdir=None, cuda_device=0):
+    def __init__(self, lgmodel_fn=None, models_prefix="lg_segmentor_model_", temp_data_outdir=None, cuda_device=0):
         logging.debug(f"cMultiAxisRotationsSegmentor __init__() with temp_data_outdir:{temp_data_outdir} , cuda_device:{cuda_device}")
         import random
         prefn = random.randint(0,10000)
@@ -81,6 +81,10 @@ class cMultiAxisRotationsSegmentor():
         self.all_nn1_pred_pd=None
 
         self.NN1_volsegm_pred_path=None
+        self._tempdir_pred=None
+
+        if not lgmodel_fn is None:
+            self.load_model(lgmodel_fn)
 
     def _init_settings(self):
         #Initialise internal settings for the neural networks
@@ -207,10 +211,10 @@ class cMultiAxisRotationsSegmentor():
         # and collects data files
         
         # Setup temporary folders to store predictions
-        self.tempdir_pred=None
+        self._tempdir_pred=None
         if self.temp_data_outdir is None:
-            self.tempdir_pred= tempfile.TemporaryDirectory()
-            tempdir_pred_path = Path(self.tempdir_pred.name)
+            self._tempdir_pred= tempfile.TemporaryDirectory()
+            tempdir_pred_path = Path(self._tempdir_pred.name)
         else:
             tempdir_pred_path=Path(self.temp_data_outdir)
         
@@ -326,10 +330,10 @@ class cMultiAxisRotationsSegmentor():
         if not self.model_NN1_path is None and not self.NN2 is None:
             logging.info("Setting up NN1 prediction")
 
-            self.tempdir_pred=None
+            self._tempdir_pred=None
             if self.temp_data_outdir is None:
-                self.tempdir_pred= tempfile.TemporaryDirectory()
-                tempdir_pred_path = Path(self.tempdir_pred.name)
+                self._tempdir_pred= tempfile.TemporaryDirectory()
+                tempdir_pred_path = Path(self._tempdir_pred.name)
             else:
                 tempdir_pred_path=Path(self.temp_data_outdir)
 
@@ -519,6 +523,7 @@ class cMultiAxisRotationsSegmentor():
 
             #Accumulate for consistency score
             logging.debug(f"_handle_pred_data_probs(), count,axis,rot:{count},{axis},{rot}, self.NN1_consistencyscore_outpath:{self.NN1_consistencyscore_outpath}, self.NN1_volsegm_pred_path:{self.NN1_volsegm_pred_path}")
+            
             if not self.NN1_consistencyscore_outpath is None:
                 consistencyscore0.accumulate(pred_probs)
 
@@ -934,9 +939,9 @@ class cMultiAxisRotationsSegmentor():
 
         with ZipFile(filename, 'r') as zipobj:
             ##NN1 model
-            self.nn1_model_temp_dir = tempfile.TemporaryDirectory()
-            zipobj.extract("NN1_model.pytorch",self.nn1_model_temp_dir.name)
-            self.model_NN1_path=Path(self.nn1_model_temp_dir.name,"NN1_model.pytorch")
+            self._nn1_model_temp_dir = tempfile.TemporaryDirectory()
+            zipobj.extract("NN1_model.pytorch",self._nn1_model_temp_dir.name)
+            self.model_NN1_path=Path(self._nn1_model_temp_dir.name,"NN1_model.pytorch")
 
             with zipobj.open("NN1_train_settings.joblib",'r') as z0:
                 self.NN1_train_settings= joblib.load(z0)
@@ -1122,7 +1127,7 @@ class cMultiAxisRotationsSegmentor():
         if not lgsegm0.all_nn1_pred_pd is None:
             lgsegm1.all_nn1_pred_pd = lgsegm0.all_nn1_pred_pd.copy()
 
-        lgsegm1.nn1_model_temp_dir = lgsegm0.nn1_model_temp_dir
+        lgsegm1._nn1_model_temp_dir = lgsegm0.nn1_model_temp_dir
         lgsegm1.model_NN1_path= lgsegm0.model_NN1_path
 
         
@@ -1136,3 +1141,27 @@ class cMultiAxisRotationsSegmentor():
         union = np.sum(y_true) + np.sum(y_pred)
         return 1.0 - (2.0 * intersection + 1.0) / (union + 1.0)
 
+    def cleanup(self):
+        try:
+            self._tempdir_pred.cleanup()
+        except:
+            pass
+
+        try:
+            self._pytorch_model_tempdir.cleanup()
+        except:
+            pass
+        
+        try:
+            self._nn1_model_temp_dir.cleanup()
+        except:
+            pass
+
+    #Context manager, to clean resources such as tempfiles efficiently
+    # and provide a way for using `with` statements
+    def __exit__(self, *args):
+        self.cleanup()
+    
+    def __enter__(self):
+        #Required to run with `with`
+        return self
