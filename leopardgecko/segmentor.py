@@ -204,7 +204,6 @@ class cMultiAxisRotationsSegmentor():
         self.NN1_train(traindata0, trainlabels0)
         #(This does not return anything.)
 
-
         # ** Predict NN1
         #Does the multi-axis multi-rotation predictions
         # and collects data files
@@ -250,11 +249,13 @@ class cMultiAxisRotationsSegmentor():
             dice_list0 = [ ad0[1][0] for ad0 in nn1_acc_dice_s]
             self.all_nn1_pred_pd["dice"]= dice_list0
 
+
+
         # ** NN2 training
 
         #Need to train next model by running predictions and optimize MLP
         #Use multi-predicted data and labels to train NN2
-        #Build data object containing all predictions
+        #Build data object containing all predictions (5D - iset, ipred, z,y,x, class)
 
         npredictions_per_set = int(np.max(self.all_nn1_pred_pd['pred_ipred'].to_numpy())+1)
         logging.info(f"npredictions_per_set:{npredictions_per_set}")
@@ -572,7 +573,8 @@ class cMultiAxisRotationsSegmentor():
                 model_file_path= self.model_NN1_path,
                 data_vol=data_vol1,
                 settings=self.NN1_pred_settings,
-                use_dask=True)
+                #use_dask=True
+                )
 
             data_vol0 = volseg2pred_m.data_vol  #Collects clipped data
 
@@ -939,7 +941,7 @@ class cMultiAxisRotationsSegmentor():
 
         return newobj
     
-    def aggregate_nn1_pred_data(self, use_dask):
+    def aggregate_nn1_pred_data(self, use_dask=False):
         logging.debug(f"aggregate_nn1_pred_data with use_dask:{use_dask}")
         if self.all_nn1_pred_pd is None:
             return None
@@ -947,7 +949,7 @@ class cMultiAxisRotationsSegmentor():
         logging.info("Building large object containing all predictions.")
         #Build data object containing all predictions
         #Try using numpy. If memory error use dask instead
-        # bcomplete=False
+
         data_all=None
 
         if not use_dask:
@@ -1127,7 +1129,6 @@ class cMultiAxisRotationsSegmentor():
             
             if do_cs:
                 consistencyscore0.accumulate(pred_probs)
-
 
 
     @staticmethod
