@@ -80,7 +80,6 @@ class cMultiAxisRotationsSegmentor():
 
         self.all_nn1_pred_pd=None
 
-        self.NN1_volsegm_pred_path=None
         self._tempdir_pred=None
 
         if not lgmodel_fn is None:
@@ -149,8 +148,8 @@ class cMultiAxisRotationsSegmentor():
         self.labels_dtype=None #default
 
         #added settings
-        self.NN1_volsegm_pred_path=None
-        self.NN1_consistencyscore_outpath=None
+        # self.NN1_volsegm_pred_path=None
+        # self.NN1_consistencyscore_outpath=None
 
 
     def set_cuda_device(self,n):
@@ -468,12 +467,6 @@ class cMultiAxisRotationsSegmentor():
                 'pred_rots'
                 'pred_ipred'
 
-        This function will optionally output the following:
-            - if self.NN1_volsegm_pred_path: predictions that would be expected
-            from standard volumesegmantics.
-            - if self.NN1_consistencyscore_outpath: calculates consistency score
-            from probabilities (default) or labels
-
         """
 
         #Load volume segmantics model from file to class instance
@@ -499,69 +492,56 @@ class cMultiAxisRotationsSegmentor():
             save_data_to_hdf5(data, file_path)
             return file_path
         
-        def _squeeze_merge_vols_by_max_prob( probs2, labels2):
-            #Code from volumesegmantics that merges predictions
-            logging.debug("_merge_vols_by_max_prob()")
-            max_prob_idx = np.argmax(probs2, axis=0)
-            max_prob_idx = max_prob_idx[np.newaxis, :, :, :]
-            probs2[0] = np.squeeze(
-                np.take_along_axis(probs2, max_prob_idx, axis=0)
-            )
-            labels2[0] = np.squeeze(
-                np.take_along_axis(labels2, max_prob_idx, axis=0)
-            )
-            return
-        
-        def _handle_pred_data_probs(self,pred_probs, pred_labels, count,axis,rot):
-            #nonlocal attempts to grab these variables defined in previous scope
-            # Another way to handle this is to define variable with self.
-            # nonlocal labels_vs
-            # nonlocal probs_vs
+        # def _handle_pred_data_probs(self,pred_probs, pred_labels, count,axis,rot):
+        #     #nonlocal attempts to grab these variables defined in previous scope
+        #     # Another way to handle this is to define variable with self.
+        #     # nonlocal labels_vs
+        #     # nonlocal probs_vs
             
-            # pred_probs is in format (z,y,x, class)
-            # pred_labels is in format (z,y,x)
+        #     # pred_probs is in format (z,y,x, class)
+        #     # pred_labels is in format (z,y,x)
 
-            #Accumulate for consistency score
-            logging.debug(f"_handle_pred_data_probs(), count,axis,rot:{count},{axis},{rot}, self.NN1_consistencyscore_outpath:{self.NN1_consistencyscore_outpath}, self.NN1_volsegm_pred_path:{self.NN1_volsegm_pred_path}")
+        #     #Accumulate for consistency score
+        #     logging.debug(f"_handle_pred_data_probs(), count,axis,rot:{count},{axis},{rot}, self.NN1_consistencyscore_outpath:{self.NN1_consistencyscore_outpath}, self.NN1_volsegm_pred_path:{self.NN1_volsegm_pred_path}")
             
-            if not self.NN1_consistencyscore_outpath is None:
-                consistencyscore0.accumulate(pred_probs)
+        #     if not self.NN1_consistencyscore_outpath is None:
+        #         consistencyscore0.accumulate(pred_probs)
 
-            # Accumulate for volume segmantics
-            if not self.NN1_volsegm_pred_path is None:
-                logging.debug("Calculating probs_class_squeezed")
-                # # Squeeze probabilities along class
-                # # by grabing the highest probable class label and probability
-                # max_prob_idx = np.argmax(pred_probs, axis=1, keepdims=True)
-                # # Extract along axis from outputs
-                # probs_class_squeezed = np.take(pred_probs, axis=1, indices=max_prob_idx) #(data,indices, axis)
-                # # Remove the label dimension
-                # probs_class_squeezed = np.squeeze(probs_class_squeezed, axis=1)
+        #     # Accumulate for volume segmantics
+        #     if not self.NN1_volsegm_pred_path is None:
+        #         logging.debug("Calculating probs_class_squeezed")
+        #         # # Squeeze probabilities along class
+        #         # # by grabing the highest probable class label and probability
+        #         # max_prob_idx = np.argmax(pred_probs, axis=1, keepdims=True)
+        #         # # Extract along axis from outputs
+        #         # probs_class_squeezed = np.take(pred_probs, axis=1, indices=max_prob_idx) #(data,indices, axis)
+        #         # # Remove the label dimension
+        #         # probs_class_squeezed = np.squeeze(probs_class_squeezed, axis=1)
 
-                # max_prob_idx = torch.argmax(probs, dim=1, keepdim=True)
-                # # Extract along axis from outputs
-                # probs = torch.gather(probs, 1, max_prob_idx)  #(data,dim, index)
-                # # Remove the label dimension
-                # probs = torch.squeeze(probs, dim=1)
+        #         # max_prob_idx = torch.argmax(probs, dim=1, keepdim=True)
+        #         # # Extract along axis from outputs
+        #         # probs = torch.gather(probs, 1, max_prob_idx)  #(data,dim, index)
+        #         # # Remove the label dimension
+        #         # probs = torch.squeeze(probs, dim=1)
 
-                probs_class_squeezed = np.max(pred_probs, axis=pred_probs.ndim-1)
+        #         probs_class_squeezed = np.max(pred_probs, axis=pred_probs.ndim-1)
 
-                if self.labels_vs_2stack is None:
-                    logging.info(f"self.NN1_volsegm_pred_path provided:{self.NN1_volsegm_pred_path}. Will merge and save to predicted labels using volumesegmantics method.")
-                    logging.debug("First labels and probs file initializes")
-                    shape_tup = pred_labels.shape
-                    self.labels_vs_2stack = np.empty((2, *shape_tup), dtype=pred_labels.dtype)
-                    self.probs_vs_2stack = np.empty((2, *shape_tup), dtype=pred_probs.dtype)
-                    self.labels_vs_2stack[0]=pred_labels
-                    self.probs_vs_2stack[0]=probs_class_squeezed
-                else:
-                    self.labels_vs_2stack[1]=pred_labels
-                    self.probs_vs_2stack[1]=probs_class_squeezed
+        #         if self.labels_vs_2stack is None:
+        #             logging.info(f"self.NN1_volsegm_pred_path provided:{self.NN1_volsegm_pred_path}. Will merge and save to predicted labels using volumesegmantics method.")
+        #             logging.debug("First labels and probs file initializes")
+        #             shape_tup = pred_labels.shape
+        #             self.labels_vs_2stack = np.empty((2, *shape_tup), dtype=pred_labels.dtype)
+        #             self.probs_vs_2stack = np.empty((2, *shape_tup), dtype=pred_probs.dtype)
+        #             self.labels_vs_2stack[0]=pred_labels
+        #             self.probs_vs_2stack[0]=probs_class_squeezed
+        #         else:
+        #             self.labels_vs_2stack[1]=pred_labels
+        #             self.probs_vs_2stack[1]=probs_class_squeezed
 
-                    _squeeze_merge_vols_by_max_prob(self.probs_vs_2stack,self.labels_vs_2stack)
+        #             self._squeeze_merge_vols_by_max_prob(self.probs_vs_2stack,self.labels_vs_2stack)
 
-            #Save and return the result (filepath) from _save_pred_data() function 
-            return _save_pred_data(pred_probs, count,axis,rot)
+        #     #Save and return the result (filepath) from _save_pred_data() function 
+        #     return _save_pred_data(pred_probs, count,axis,rot)
 
         data_to_predict_l=None
         if not isinstance(data_to_predict, list):
@@ -619,8 +599,8 @@ class cMultiAxisRotationsSegmentor():
                 )
                 pred_probs = np.rot90(res[1], -krot, axes=planeYX) #invert rotation before saving
                 pred_labels = np.rot90(res[0], -krot, axes=planeYX)
-                # fn = _save_pred_data(pred_probs, i, "YX", rot_angle_degrees)
-                fn = _handle_pred_data_probs(self,pred_probs,pred_labels, i, "YX", rot_angle_degrees)
+                fn = _save_pred_data(pred_probs, i, "YX", rot_angle_degrees)
+                #fn = _handle_pred_data_probs(self,pred_probs,pred_labels, i, "YX", rot_angle_degrees)
 
                 #Saves prediction labels
                 #Sets nlabels from last dimension. Assumes last dimension is number of labels
@@ -648,8 +628,8 @@ class cMultiAxisRotationsSegmentor():
                 )
                 pred_probs = np.rot90(res[1], -krot, axes=planeZX) #invert rotation before saving
                 pred_labels = np.rot90(res[0], -krot, axes=planeZX)
-                # fn = _save_pred_data(pred_probs, i, "ZX", rot_angle_degrees)
-                fn = _handle_pred_data_probs(self,pred_probs,pred_labels, i, "ZX", rot_angle_degrees)
+                fn = _save_pred_data(pred_probs, i, "ZX", rot_angle_degrees)
+                #fn = _handle_pred_data_probs(self,pred_probs,pred_labels, i, "ZX", rot_angle_degrees)
                 pred_data_probs_filenames.append(fn)
 
                 fn = _save_pred_data(pred_labels, i, "ZX_labels", rot_angle_degrees)
@@ -671,8 +651,8 @@ class cMultiAxisRotationsSegmentor():
                 )
                 pred_probs = np.rot90(res[1], -krot, axes=planeZY) #invert rotation before saving
                 pred_labels = np.rot90(res[0], -krot, axes=planeZY)
-                # fn = _save_pred_data(pred_probs, i, "ZY", rot_angle_degrees)
-                fn = _handle_pred_data_probs(self,pred_probs,pred_labels, i, "ZY", rot_angle_degrees)
+                fn = _save_pred_data(pred_probs, i, "ZY", rot_angle_degrees)
+                #fn = _handle_pred_data_probs(self,pred_probs,pred_labels, i, "ZY", rot_angle_degrees)
                 pred_data_probs_filenames.append(fn)
 
                 pred_labels = np.rot90(res[0], -krot, axes=planeZY)
@@ -700,17 +680,17 @@ class cMultiAxisRotationsSegmentor():
             'pred_shapes': pred_shapes,
         })
         
-        #This code below is untested
-        #Run standard volume segmantics merging of predicted volumes and saves as h5 file
-        if not self.NN1_volsegm_pred_path is None:
-            logging.info(f"volsegm_pred_path provided:{self.NN1_volsegm_pred_path}, saving merged prediction labels")
+        # #This code below is untested
+        # #Run standard volume segmantics merging of predicted volumes and saves as h5 file
+        # if not self.NN1_volsegm_pred_path is None:
+        #     logging.info(f"volsegm_pred_path provided:{self.NN1_volsegm_pred_path}, saving merged prediction labels")
 
-            #Upon completion, save labels
-            save_data_to_hdf5(self.labels_vs_2stack[0],self.NN1_volsegm_pred_path)
+        #     #Upon completion, save labels
+        #     save_data_to_hdf5(self.labels_vs_2stack[0],self.NN1_volsegm_pred_path)
 
-        #Get the final consistency score
-        if not self.NN1_consistencyscore_outpath is None:
-            save_data_to_hdf5(consistencyscore0.getCScore(),self.NN1_consistencyscore_outpath)
+        # #Get the final consistency score
+        # if not self.NN1_consistencyscore_outpath is None:
+        #     save_data_to_hdf5(consistencyscore0.getCScore(),self.NN1_consistencyscore_outpath)
 
         #Clean up
         del(self.labels_vs_2stack)
@@ -967,106 +947,78 @@ class cMultiAxisRotationsSegmentor():
         logging.info("Building large object containing all predictions.")
         #Build data object containing all predictions
         #Try using numpy. If memory error use dask instead
-        bcomplete=False
+        # bcomplete=False
         data_all=None
-        while not bcomplete:
-            if not use_dask:
-                logging.info("use_dask=False. Will try to aggregate data to a numpy.ndarray")
-                try:
-                    data_all=None
-                    # aggregate multiple sets for data
-                    for i,prow in tqdm.tqdm(self.all_nn1_pred_pd.iterrows(), total=self.all_nn1_pred_pd.shape[0]):
 
-                        prob_filename = prow['pred_data_probs_filenames']
-                        data0 = read_h5_to_np(prob_filename)
+        if not use_dask:
+            logging.info("use_dask=False. Will try to aggregate data to a numpy.ndarray")
+            try:
+                data_all=None
+                # aggregate multiple sets for data
+                for i,prow in tqdm.tqdm(self.all_nn1_pred_pd.iterrows(), total=self.all_nn1_pred_pd.shape[0]):
 
-                        if i==0:
-                            #initialise
-                            logging.info(f"data0.shape:{data0.shape}")
-                            npredictions = int(np.max(self.all_nn1_pred_p['pred_ipred'].to_numpy())+1)
-                            logging.info(f"npredictions:{npredictions}")
-                            
-                            all_shape = (
-                                npredictions,
-                                *data0.shape
-                                )
-                            # (ipred, iz,iy,ix, ilabel) , 5dim
-                            
-                            data_all = np.zeros(all_shape, dtype=data0.dtype)
+                    prob_filename = prow['pred_data_probs_filenames']
+                    data0 = read_h5_to_np(prob_filename)
 
-                        data_all[i,:,:,:,:]=data0
+                    if i==0:
+                        #initialise
+                        logging.info(f"data0.shape:{data0.shape}")
+                        npredictions = int(np.max(self.all_nn1_pred_p['pred_ipred'].to_numpy())+1)
+                        logging.info(f"npredictions:{npredictions}")
+                        
+                        all_shape = (
+                            npredictions,
+                            *data0.shape
+                            )
+                        # (ipred, iz,iy,ix, ilabel) , 5dim
+                        
+                        data_all = np.zeros(all_shape, dtype=data0.dtype)
 
-                    # data0 = read_h5_to_np(pred_data_probs_filenames[0]) 
-                    # all_shape = ( len(pred_data_probs_filenames), *data0.shape )
-                    # print(f"all_shape:{all_shape}")
-                    # data_all = np.zeros(all_shape, dtype=data0.dtype) #May lead to very large dataset which may lead to memory allocation error
-                    # #Fill with data
-                    # data_all[0,:,:,:,:]= data0
-                    # for i in tqdm.trange(1,len(pred_data_probs_filenames), desc="Loading prediction files"):
-                    #     data_i = read_h5_to_np(pred_data_probs_filenames[i])
-                    #     data_all[i,:,:,:,:]=data_i
+                    data_all[i,:,:,:,:]=data0
 
-                    bcomplete=True #Flag completion to exit while loop
-                except Exception as exc0:
-                    logging.info("Allocation using numpy failed. Failsafe will use dask.")
-                    logging.info(f"Exception type:{type(exc0)}")
-                    use_dask=True
-            else:
-                logging.info("use_dask=True. Will aggregate data to a dask.array object")
-                try:
-                    # data0 = read_h5_to_da(pred_data_probs_filenames[0]) 
-                    # all_shape = ( len(pred_data_probs_filenames), *data0.shape )
-                    # print(f"all_shape:{all_shape}")
+            except Exception as exc0:
+                logging.info("Allocation using numpy failed. Failsafe will use dask.")
+                logging.info(f"Exception type:{type(exc0)}")
+                use_dask=True
+            
+        if use_dask:
+            logging.info("use_dask=True. Will aggregate data to a dask.array object")
+            try:
+                data_all=None
+                # aggregate multiple sets for data
+                for i,prow in tqdm.tqdm(self.all_nn1_pred_pd.iterrows(), total=self.all_nn1_pred_pd.shape[0]):
 
-                    # chunks_shape = (len(pred_data_probs_filenames), *data0.chunksize )
-                    # print(f"dask data_all will have chunksize set to {chunks_shape}")
-                    # data_all=da.zeros(all_shape, chunks=chunks_shape , dtype=data0.dtype)
-                    # #in case of 12 predictions and 3 labels, the chunks will be (12,128,128,128,3) size
+                    prob_filename = prow['pred_data_probs_filenames']
+                    data0 = read_h5_to_da(prob_filename)
 
-                    # #Fill with data
-                    # data_all[0,:,:,:,:]= data0
-                    # for i in tqdm.trange(1,len(pred_data_probs_filenames), desc="Loading predictions"):
-                    #     #print(i)
-                    #     data_i = read_h5_to_da(pred_data_probs_filenames[i])
-                    #     data_all[i,:,:,:,:]=data_i
+                    if i==0:
+                        #initialise
+                        logging.info(f"i:{i}, data0.shape:{data0.shape}, data0.chunksize:{data0.chunksize} ")
+                        npredictions = int(np.max(self.all_nn1_pred_pd['pred_ipred'].to_numpy())+1)
+                        logging.info(f"npredictions:{npredictions}")
+                        
+                        #chunks_shape = (npredictions, *data0.chunksize )
+                        #in case of 12 predictions and 3 labels, the chunks will be (12,128,128,128,3) size
+                        all_shape = ( npredictions,*data0.shape)
 
+                        #max chunksize in xyz of 1024
+                        zyx_chunks_orig= data0.chunksize[:-1]
+                        zyx_chunks_max= [ min(s,1024) for s in zyx_chunks_orig ]
+                        chunks_shape = ( npredictions,*zyx_chunks_max,data0. chunksize[-1] )
 
-                    data_all=None
-                    # aggregate multiple sets for data
-                    for i,prow in tqdm.tqdm(self.all_nn1_pred_pd.iterrows(), total=self.all_nn1_pred_pd.shape[0]):
+                        logging.info(f"data_all shape:{all_shape} chunks_shape:{chunks_shape}")
 
-                        prob_filename = prow['pred_data_probs_filenames']
-                        data0 = read_h5_to_da(prob_filename)
+                        # (ipred, iz,iy,ix, ilabel) , 5dim
+                        data_all=da.zeros(all_shape, chunks=chunks_shape , dtype=data0.dtype)
 
-                        if i==0:
-                            #initialise
-                            logging.info(f"i:{i}, data0.shape:{data0.shape}, data0.chunksize:{data0.chunksize} ")
-                            npredictions = int(np.max(self.all_nn1_pred_pd['pred_ipred'].to_numpy())+1)
-                            logging.info(f"npredictions:{npredictions}")
-                            
-                            #chunks_shape = (npredictions, *data0.chunksize )
-                            #in case of 12 predictions and 3 labels, the chunks will be (12,128,128,128,3) size
-                            all_shape = ( npredictions,*data0.shape)
+                    data_all[i,:,:,:,:]=data0
 
-                            #max chunksize in xyz of 1024
-                            zyx_chunks_orig= data0.chunksize[:-1]
-                            zyx_chunks_max= [ min(s,1024) for s in zyx_chunks_orig ]
-                            chunks_shape = ( npredictions,*zyx_chunks_max,data0. chunksize[-1] )
-
-                            logging.info(f"data_all shape:{all_shape} chunks_shape:{chunks_shape}")
-
-                            # (ipred, iz,iy,ix, ilabel) , 5dim
-                            data_all=da.zeros(all_shape, chunks=chunks_shape , dtype=data0.dtype)
-
-                        data_all[i,:,:,:,:]=data0
-
-                    bcomplete=True
-                except Exception as exc0:
-                    logging.info("Allocation failed with dask. Returning None")
-                    logging.info(f"Exception type:{type(exc0)}")
-                    logging.info("Exception string:", str(exc0))
-                    data_all=None
-                    bcomplete=True
+                bcomplete=True
+            except Exception as exc0:
+                logging.info("Allocation failed with dask. Returning None")
+                logging.info(f"Exception type:{type(exc0)}")
+                logging.info("Exception string:", str(exc0))
+                data_all=None
         
         return data_all
     
@@ -1075,9 +1027,11 @@ class cMultiAxisRotationsSegmentor():
         Does the volume segmantics predictions using its 'standard' way, with a single volume output
         
         Params:
-        data_vol: path to file or ndarray. Single, not a list
-        pred_file_h5_out: a string with the location of where to drop results in h5 file format *.h5
+            data_vol: path to file or ndarray. Single, not a list
+            pred_file_h5_out: a string with the location of where to drop results in h5 file format *.h5
 
+        Returns:
+            nothing. Output result should be saved in filename pred_file_h5_out
         
         """
 
@@ -1099,6 +1053,81 @@ class cMultiAxisRotationsSegmentor():
         volseg2pred_m.predict_volume_to_path(pred_file_h5_out_path)
 
         logging.info(f"Prediction completed, saved to file: {pred_file_h5_out}")
+
+    @staticmethod
+    def _squeeze_merge_vols_by_max_prob( probs2, labels2):
+        #Code from volumesegmantics that merges predictions
+        logging.debug("_merge_vols_by_max_prob()")
+        max_prob_idx = np.argmax(probs2, axis=0)
+        max_prob_idx = max_prob_idx[np.newaxis, :, :, :]
+        probs2[0] = np.squeeze(
+            np.take_along_axis(probs2, max_prob_idx, axis=0)
+        )
+        labels2[0] = np.squeeze(
+            np.take_along_axis(labels2, max_prob_idx, axis=0)
+        )
+        return
+        
+
+    def NN1_predict_extra_from_last_prediction(self, do_vspred=False, do_cs=False):
+        """
+        Does the volume-segmantics predictions and consistency score calcualation
+        and returns a dictionary with the results.
+        Uses the temporary output files from last prediction to work out the new prediction.
+
+        If trying to do vspred and consistency score at the same time and this routine uses too much RAM
+        try to execute one at the time
+
+        TODO: option to use dask for handling data
+        
+        Params:
+            do_vspred: calculate the predictions in 'standard' colume-segmantics way
+            do_cs: calculate consistency score using the probabilities
+
+        Returns:
+            A dictionary
+                'vspred' : predicted volume-segmantics
+                'cs': the consistency score volume
+        """
+
+        logging.debug("NN1_predict_extra_from_last_prediction()")
+
+        labels_vs_2stack=None
+        probs_vs_2stack=None
+
+        if do_cs: 
+            from . import ConsistencyScore
+            consistencyscore0 = ConsistencyScore.cConsistencyScoreMultipleWayProbsAccumulate()
+
+        # Uses pandas list created with location of files
+        for i,prow in tqdm.tqdm(self.all_nn1_pred_pd.iterrows(), total=self.all_nn1_pred_pd.shape[0]):
+
+            if do_vspred or do_cs:
+                pred_prob_filename = prow['pred_data_probs_filenames']
+                pred_probs = read_h5_to_np(pred_prob_filename)
+
+            if do_vspred:
+                pred_labels_filename = prow['pred_data_labels_filenames']
+                pred_labels = read_h5_to_np(pred_labels_filename)
+
+                #Squeeze all probabilities along class dimension to maximum
+                probs_class_squeezed = np.max(pred_probs, axis=pred_probs.ndim-1)
+
+                if labels_vs_2stack is None:
+                    logging.debug("First labels and probs file initializes")
+                    shape_tup = pred_labels.shape
+                    labels_vs_2stack = np.empty((2, *shape_tup), dtype=pred_labels.dtype)
+                    probs_vs_2stack = np.empty((2, *shape_tup), dtype=pred_probs.dtype)
+                    labels_vs_2stack[0]=pred_labels
+                    probs_vs_2stack[0]=probs_class_squeezed
+                else:
+                    labels_vs_2stack[1]=pred_labels
+                    probs_vs_2stack[1]=probs_class_squeezed
+                    self._squeeze_merge_vols_by_max_prob(probs_vs_2stack,labels_vs_2stack)
+            
+            if do_cs:
+                consistencyscore0.accumulate(pred_probs)
+
 
 
     @staticmethod
@@ -1136,7 +1165,7 @@ class cMultiAxisRotationsSegmentor():
         return lgsegm1
 
 
-    def dice_loss_np(y_true, y_pred):
+    def dice_loss_np(y_true, y_pred): #old, not used anymore
         intersection = np.sum(y_true * y_pred)
         union = np.sum(y_true) + np.sum(y_pred)
         return 1.0 - (2.0 * intersection + 1.0) / (union + 1.0)
