@@ -1129,6 +1129,17 @@ class cMultiAxisRotationsSegmentor():
             
             if do_cs:
                 consistencyscore0.accumulate(pred_probs)
+        
+        vspred=None
+
+        if do_vspred:
+            vspred=labels_vs_2stack[0]
+
+        if do_cs:
+            cs = consistencyscore0.getCScore()
+        
+        return {'cs':cs, 'vspred':vspred}
+
 
 
     @staticmethod
