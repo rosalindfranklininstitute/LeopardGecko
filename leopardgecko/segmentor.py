@@ -1049,7 +1049,8 @@ class cMultiAxisRotationsSegmentor():
                 model_file_path= self.model_NN1_path,
                 data_vol=data_vol,
                 settings=self.NN1_pred_settings,
-                use_dask=True)
+                #use_dask=True
+                )
         
         pred_file_h5_out_path = Path(pred_file_h5_out)
         volseg2pred_m.predict_volume_to_path(pred_file_h5_out_path)
@@ -1131,6 +1132,7 @@ class cMultiAxisRotationsSegmentor():
                 consistencyscore0.accumulate(pred_probs)
         
         vspred=None
+        cs=None
 
         if do_vspred:
             vspred=labels_vs_2stack[0]
