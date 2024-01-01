@@ -132,11 +132,14 @@ def map_vol_function_by_blocking(func0, data3d, block_shape, margins_shape):
 
                 #Crop the padded on the left side
                 if iz0 !=0 :
-                    jz0 += int( (block_shape[0] - bl_step[0]) / 2)
+                    #jz0 += int( (block_shape[0] - bl_step[0]) / 2)
+                    jz0 += margins_shape[0]
                 if iy0 !=0:
-                    jy0 += int( (block_shape[1] - bl_step[1]) / 2)
+                    #jy0 += int( (block_shape[1] - bl_step[1]) / 2)
+                    jy0 += margins_shape[1]
                 if ix0 !=0:
-                    jx0 += int( (block_shape[2] - bl_step[2]) / 2)
+                    #jx0 += int( (block_shape[2] - bl_step[2]) / 2)
+                    jx0 += margins_shape[2]
                 
                 logging.info(f"BLOCK:Crop block result from origin jz0,jy0,jx0 = : {jz0},{jy0},{jx0}")
                 
