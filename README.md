@@ -1,15 +1,22 @@
 # LeopardGecko
-This package contains routines to process and analyse data obtained from predicted segmentation of microscopy data in package.
-See  [UnetSegmentation](https://github.com/rosalindfranklininstitute/UnetSegmentation).
+This package contains tools for 3D semantic segmentation.
 
+## segmentor.py
+LeopardGecko segmentation is  powered by [volume-segmantics](https://github.com/rosalindfranklininstitute/volume-segmantics),
+which makes training and predictions along multiple-axis, resulting in multiple predictions.
+LeopardGecko collects these predictions and fuse them together
+with a MLP classifier.
 
-## leopardgecko.py
-Used to get metrics from the predicted data
+segmentor.py has training and routine functions, please see examples in the `scripts` folder.#
 
-### Class Predicted data
-Constructor (filename): initialise with a hdf5 containing the volume data that has been predicted and combined from several different orientations. This file is normally the output from the prediction produced by binary unet segmentation https://github.com/rosalindfranklininstitute/UnetSegmentation
+In addition, it can caclulate the Consistency Score of the predicted volume,
+which is a sort of a volumetric heatmap of how consistent the multiple predictions were for each voxel.
+and can be used as a metric that measures the certainty of the prediction.
 
-Normally, after setting the data file, user has to choose the weighting method used for calculating consistency score.
+[//]: # (TODO: Add more details of how to use)
+ 
+## metrics.py
+Some metrics functions from the predicted data
 
 ### AvgPool3D_LargeData()
 Uses pytrorch to do a 3D average pooling, by providing parameters *data3d* (data volume),
@@ -22,7 +29,8 @@ This operation is normally done with the weighted predicted data to determine re
 ### Score data
 Class to store and analyse score data. Contains routines to generate histograms and suggest volumes of interest based in histogram positions.
 
-
+### Class PredictedData
+Constructor (filename): initialise with a hdf5 containing the volume data that has been predicted and combined from several different orientations. This file is normally the output from the prediction produced by binary unet segmentation https://github.com/rosalindfranklininstitute/UnetSegmentation
 
 ## lg-genpredcsreport.py
 Utility that can be used to generate a report of consistency score analysis from a combined prediction file. This script uses lg-genpredreport.ipynb notebook. Information about how to use and parameters to use can be obtained by running
